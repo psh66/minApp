@@ -17,9 +17,15 @@ Page({
   },
 
   onLoad() {
+    // 优先读取本地缓存的签到状态，提升体验
+    const isSignedCache = wx.getStorageSync('isSignedToday');
+    if (isSignedCache) {
+      this.setData({ isSigned: true });
+    } else {
+      this.checkSignStatus().catch(() => {});
+    }
     this.checkUserEmail(); // 改为查询多邮箱列表
     this.getContactsList().catch(() => {});
-    this.checkSignStatus().catch(() => {});
   },
 
   // 修改：查询当前用户的所有邮箱（适配多邮箱）
@@ -101,16 +107,23 @@ Page({
     try {
       const app = getApp();
       const today = new Date();
-      const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-      const end = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+      // 精确设置今日 00:00 和明日 00:00 的时间戳
+      const start = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+      const end = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).getTime();
       
       const res = await signCol.where({
         openid: app.globalData.openid,
         signTime: db.command.gte(start).and(db.command.lt(end))
       }).get();
-      this.setData({ isSigned: res.data.length > 0 });
+      const isSigned = res.data.length > 0;
+      this.setData({ isSigned });
+      // 同步到本地缓存
+      wx.setStorageSync('isSignedToday', isSigned);
     } catch (err) {
       console.error('检查签到状态失败：', err);
+      // 异常时默认设为未签到
+      this.setData({ isSigned: false });
+      wx.setStorageSync('isSignedToday', false);
     }
   },
 
@@ -123,24 +136,18 @@ Page({
       }
       await signCol.add({
         data: {
-          signTime: new Date(),
+          signTime: new Date().getTime(), // 存储时间戳，方便查询
           createTime: db.serverDate(),
           openid: app.globalData.openid
         }
       });
       wx.showToast({ title: '签到成功' });
+      // 强制更新状态并同步缓存
       this.setData({ isSigned: true });
+      wx.setStorageSync('isSignedToday', true);
     } catch (err) {
       console.error('签到失败详细原因：', err);
-      if (err.errMsg.includes('Invalid Key Name')) {
-        wx.showToast({ title: '签到失败：字段名违规', icon: 'none' });
-      } else if (err.errMsg.includes('collection not exists')) {
-        wx.showToast({ title: '签到失败：签到记录集合未创建', icon: 'none' });
-      } else if (err.errMsg.includes('auth deny')) {
-        wx.showToast({ title: '签到失败：权限不足', icon: 'none' });
-      } else {
-        wx.showToast({ title: '签到失败，请稍后重试', icon: 'none' });
-      }
+      wx.showToast({ title: '签到失败，请稍后重试', icon: 'none' });
     }
   },
 

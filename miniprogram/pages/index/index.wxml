@@ -1,16 +1,20 @@
 <view class="container" style="padding: 20rpx; background: linear-gradient(to bottom, #f0f9ff, #ffffff);">
-  <!-- 今日签到（完全对齐打电话按钮样式） -->
+  <!-- 今日签到（完全对齐打电话按钮样式 + 动态文字） -->
   <view style="margin-bottom: 25rpx;">
     <view style="font-size: 32rpx; color: #333; margin-bottom: 10rpx;">今日签到</view>
     <view style="background: white; border-radius: 12rpx; padding: 12rpx; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
-      <view style="font-size: 34rpx; color: #ff4d4f; font-weight: 500;">未签到</view>
-      <!-- 完全匹配打电话按钮的样式：圆角12rpx、阴影、内边距、字体 -->
+      <!-- 动态绑定签到文字和颜色 -->
+      <view style="font-size: 34rpx; color: {{isSigned ? '#07c160' : '#ff4d4f'}}; font-weight: 500;">
+        {{isSigned ? '已签到' : '未签到'}}
+      </view>
+      <!-- 完全匹配打电话按钮的样式 -->
       <button bindtap="handleSign" disabled="{{isSigned}}" style="background: #1890ff; color: white; border: none; padding: 8rpx 0; border-radius: 12rpx; font-size: 26rpx; width: 40%; box-shadow: 0 4rpx 8rpx rgba(24, 144, 255, 0.3);">
         {{isSigned ? '已完成' : '一键签到'}}
       </button>
     </view>
   </view>
 
+  <!-- 以下代码保持不变 -->
   <!-- 紧急呼叫 -->
   <view style="margin-bottom: 25rpx;">
     <view style="font-size: 32rpx; color: #333; margin-bottom: 10rpx;">紧急呼叫</view>
