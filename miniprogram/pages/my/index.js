@@ -11,21 +11,33 @@ Page({
     userTypeText: '',
     showPrivacyDialog: false,
     showAboutDialog: false,
-    validTimeText: '' // 新增：存储格式化后的有效期文本
+    validTimeText: '' // 存储格式化后的有效期文本
   },
 
+  /**
+   * 生命周期函数--监听页面加载
+   */
   onLoad() {
     this.getUserInfo();
   },
 
-  // 移到JS里执行，可正常打印日志
+  /**
+   * 生命周期函数--监听页面显示（核心：切换到该页面时自动刷新）
+   */
+  onShow() {
+    this.getUserInfo();
+  },
+
+  /**
+   * 格式化服务有效期（JS内执行，可正常打印日志）
+   */
   formatValidTime(startTime, endTime) {
-    // 现在这里的console.log能正常输出了
+    // 打印调试日志
     console.log('时间校验参数：', startTime, endTime);
     // 校验时间是否为有效字符串
     const isStartValid = startTime && !isNaN(new Date(startTime).getTime());
     const isEndValid = endTime && !isNaN(new Date(endTime).getTime());
-    console.log('isStartValid', isStartValid, isEndValid); // 现在能打印
+    console.log('isStartValid', isStartValid, isEndValid);
 
     // 情况1：起止时间都有效
     if (isStartValid && isEndValid) {
@@ -40,10 +52,15 @@ Page({
     return '未开通会员';
   },
 
+  /**
+   * 获取用户信息（强制拉取最新数据，多层兜底）
+   */
   async getUserInfo() {
     try {
       const app = getApp();
-      const res = await usersCol.where({ _openid: app.globalData.openid }).get();
+      // 关键：force: true 强制从数据库拉取最新数据，避免缓存
+      const res = await usersCol.where({ _openid: app.globalData.openid }).get({ force: true });
+      
       if (res.data.length > 0) {
         const user = res.data[0];
         const isFormal = user.isFormalVersion || false;
@@ -72,10 +89,10 @@ Page({
           ? '正式会员' 
           : (isTrialExpired ? '试用已到期' : `试用会员（剩余${remainDays}天）`);
         
-        // 6. 格式化有效期文本（这里调用，日志能打印）
+        // 6. 格式化有效期文本
         const validTimeText = this.formatValidTime(serviceStartTime, serviceEndTime);
 
-        // 7. 更新数据（WXML直接用validTimeText，不再调用方法）
+        // 7. 更新页面数据
         this.setData({
           userName: user.name || '未设置昵称',
           isFormalVersion: isFormal,
@@ -83,7 +100,7 @@ Page({
           serviceEndTime,
           isTrialExpired,
           userTypeText,
-          validTimeText // 新增：把格式化结果存到data里
+          validTimeText
         });
       } else {
         // 无用户数据时兜底
@@ -95,18 +112,53 @@ Page({
     }
   },
 
+  /**
+   * 格式化日期（统一格式，兜底非法日期）
+   */
   formatDate(date) {
     date = new Date(date);
     if (isNaN(date.getTime())) date = new Date(); // 兜底
     return `${date.getFullYear()}-${(date.getMonth()+1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
   },
 
-  // 其他方法不变...
-  goToVersion() { wx.navigateTo({ url: '/pages/version/version' }); },
-  showPrivacyDialog() { this.setData({ showPrivacyDialog: true }); },
-  closePrivacyDialog() { this.setData({ showPrivacyDialog: false }); },
-  showAboutDialog() { this.setData({ showAboutDialog: true }); },
-  closeAboutDialog() { this.setData({ showAboutDialog: false }); },
+  /**
+   * 跳转到版本管理页面
+   */
+  goToVersion() {
+    wx.navigateTo({ url: '/pages/version/version' });
+  },
+
+  /**
+   * 显示隐私弹窗
+   */
+  showPrivacyDialog() {
+    this.setData({ showPrivacyDialog: true });
+  },
+
+  /**
+   * 关闭隐私弹窗
+   */
+  closePrivacyDialog() {
+    this.setData({ showPrivacyDialog: false });
+  },
+
+  /**
+   * 显示关于弹窗
+   */
+  showAboutDialog() {
+    this.setData({ showAboutDialog: true });
+  },
+
+  /**
+   * 关闭关于弹窗
+   */
+  closeAboutDialog() {
+    this.setData({ showAboutDialog: false });
+  },
+
+  /**
+   * 联系客服
+   */
   contactCustomer() {
     wx.showToast({ title: '正在打开客服会话', icon: 'none' });
     wx.openCustomerServiceChat({
@@ -114,10 +166,18 @@ Page({
       fail: () => wx.showToast({ title: '打开客服失败', icon: 'none' })
     });
   },
+
+  /**
+   * 清除缓存
+   */
   clearCache() {
     wx.clearStorageSync();
     wx.showToast({ title: '缓存已清除' });
   },
+
+  /**
+   * 退出登录
+   */
   logout() {
     wx.showModal({
       title: '确认退出',

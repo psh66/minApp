@@ -389,7 +389,7 @@ Page({
 
   async choosePayType(e) {
     const type = e.currentTarget.dataset.type;
-    const amount = type === 'month' ? 0.01 : 20;
+    const amount = type === 'month' ? 3 : 20;
     try {
       const app = getApp();
       const res = await wx.cloud.callFunction({
