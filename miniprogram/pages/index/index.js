@@ -297,7 +297,7 @@ Page({
       if (res.data.length > 0) {
         await usersCol.doc(res.data[0]._id).update({ data: { name: userName } });
       } else {
-        await usersCol.add({ data: { _openid: app.globalData.openid, name: userName, createTime: db.serverDate() } });
+        await usersCol.add({ data: { name: userName, createTime: db.serverDate() } });
       }
       wx.showToast({ title: '保存成功' });
     } catch (err) {
@@ -318,7 +318,7 @@ Page({
           if (userRes.data.length > 0) {
             await usersCol.doc(userRes.data[0]._id).update({ data: { homeLocation } });
           } else {
-            await usersCol.add({ data: { _openid: app.globalData.openid, homeLocation, createTime: db.serverDate() } });
+            await usersCol.add({ data: { homeLocation, createTime: db.serverDate() } });
           }
           this.setData({ homeLocation });
           wx.showToast({ title: '位置设置成功' });
@@ -469,7 +469,7 @@ Page({
       } else {
         await usersCol.add({
           data: {
-            _openid: app.globalData.openid,
+            // _openid: app.globalData.openid,
             isFormalVersion: true,
             serviceEndTime: this.formatDate(serviceEndTime),
             payType,
