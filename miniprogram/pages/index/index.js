@@ -13,7 +13,10 @@ Page({
     showAddDialog: false,
     contactForm: { name: '', wechatId: '', phone: '' },
     email: '', // 临时存储待添加的邮箱
-    emailList: [] // 存储多个邮箱的列表
+    emailList: [], // 存储多个邮箱的列表
+    // ========== 新增字段 ==========
+    userName: '',          // 用户备注姓名
+    homeLocation: null     // 存储家庭位置（经纬度+地址）
   },
 
   onLoad() {
@@ -26,6 +29,8 @@ Page({
     }
     this.checkUserEmail(); // 改为查询多邮箱列表
     this.getContactsList().catch(() => {});
+    // ========== 新增：加载用户备注和家庭位置 ==========
+    this.getUserInfo();
   },
 
   // 修改：查询当前用户的所有邮箱（适配多邮箱）
@@ -65,6 +70,7 @@ Page({
       await emailsCol.add({ 
         data: { 
           email,
+          _openid: app.globalData.openid, // 补充openid字段，确保关联用户
           createTime: db.serverDate() // 记录创建时间
         } 
       });
@@ -216,6 +222,7 @@ Page({
       await contactsCol.add({
         data: {
           name, phone,
+          _openid: app.globalData.openid,
           createTime: db.serverDate()
         }
       });
@@ -247,5 +254,185 @@ Page({
       console.error('删除联系人失败：', err);
       wx.showToast({ title: '删除失败', icon: 'none' });
     }
+  },
+
+  // ========== 新增：我的备注相关方法 ==========
+  /**
+   * 获取用户备注姓名和家庭位置
+   */
+  async getUserInfo() {
+    try {
+      const app = getApp();
+      const res = await usersCol.where({
+        _openid: app.globalData.openid
+      }).get();
+      if (res.data.length > 0) {
+        this.setData({ 
+          userName: res.data[0].name || '',
+          homeLocation: res.data[0].homeLocation || null
+        });
+      }
+    } catch (err) {
+      console.error('获取用户信息失败：', err);
+    }
+  },
+
+  /**
+   * 输入备注姓名时的实时更新
+   */
+  onUserNameInput(e) {
+    this.setData({ userName: e.detail.value });
+  },
+
+  /**
+   * 保存备注姓名到数据库
+   */
+  async saveUserName() {
+    try {
+      const app = getApp();
+      const { userName } = this.data;
+      if (!userName.trim()) return wx.showToast({ title: '请输入姓名或简称', icon: 'none' });
+
+      const res = await usersCol.where({
+        _openid: app.globalData.openid
+      }).get();
+
+      if (res.data.length > 0) {
+        // 更新已有用户的备注
+        await usersCol.doc(res.data[0]._id).update({
+          data: { name: userName }
+        });
+      } else {
+        // 新增用户记录
+        await usersCol.add({
+          data: {
+            _openid: app.globalData.openid,
+            name: userName,
+            createTime: db.serverDate()
+          }
+        });
+      }
+
+      wx.showToast({ title: '备注保存成功' });
+    } catch (err) {
+      console.error('保存备注失败：', err);
+      wx.showToast({ title: '保存失败', icon: 'none' });
+    }
+  },
+
+  // ========== 新增：家庭位置相关方法 ==========
+  /**
+   * 设置家庭位置（唤起地图选择）
+   */
+  setHomeLocation() {
+    wx.chooseLocation({
+      success: async (res) => {
+        const homeLocation = {
+          lat: res.latitude,
+          lng: res.longitude,
+          address: res.address
+        };
+        try {
+          const app = getApp();
+          const userRes = await usersCol.where({
+            _openid: app.globalData.openid
+          }).get();
+          if (userRes.data.length > 0) {
+            // 更新已有用户的家庭位置
+            await usersCol.doc(userRes.data[0]._id).update({
+              data: { homeLocation }
+            });
+          } else {
+            // 新增用户记录（含家庭位置）
+            await usersCol.add({
+              data: {
+                _openid: app.globalData.openid,
+                homeLocation,
+                createTime: db.serverDate()
+              }
+            });
+          }
+          this.setData({ homeLocation });
+          wx.showToast({ title: '家庭位置设置成功' });
+        } catch (err) {
+          console.error('保存家庭位置失败：', err);
+          wx.showToast({ title: '设置失败', icon: 'none' });
+        }
+      },
+      fail: (err) => {
+        console.log('err',err)
+        wx.showToast({ title: '取消设置位置', icon: 'none' });
+      }
+    });
+  },
+
+  // ========== 新增：紧急工具相关方法 ==========
+  /**
+   * 一键回家（唤起导航）
+   */
+  goHome() {
+    const { homeLocation } = this.data;
+    if (!homeLocation) {
+      return wx.showModal({
+        title: '提示',
+        content: '请先设置家庭位置',
+        showCancel: false
+      });
+    }
+
+    wx.openLocation({
+      latitude: homeLocation.lat,
+      longitude: homeLocation.lng,
+      name: '家',
+      address: homeLocation.address,
+      success: () => {
+        console.log('已唤起导航');
+      },
+      fail: () => {
+        wx.showToast({ title: '唤起导航失败', icon: 'none' });
+      }
+    });
+  },
+
+  /**
+   * 一键发送定位（发送到绑定邮箱）
+   */
+  async sendLocation() {
+    // 先获取用户实时定位
+    wx.getLocation({
+      type: 'gcj02', // 国测局坐标系，适配微信/高德地图
+      success: async (res) => {
+        const location = {
+          lat: res.latitude,
+          lng: res.longitude,
+          address: res.address || '位置获取中'
+        };
+
+        // 校验是否有绑定邮箱
+        if (!this.data.emailList || this.data.emailList.length === 0) {
+          return wx.showToast({ title: '暂无绑定的提醒邮箱', icon: 'none' });
+        }
+
+        try {
+          // 调用云函数发送定位邮件
+          await wx.cloud.callFunction({
+            name: 'sendLocationEmail',
+            data: { 
+              location, 
+              emailList: this.data.emailList,
+              userName: this.data.userName || '用户'
+            }
+          });
+          wx.showToast({ title: '定位已发送' });
+        } catch (err) {
+          console.error('发送定位邮件失败：', err);
+          wx.showToast({ title: '发送失败', icon: 'none' });
+        }
+      },
+      fail: (err) => {
+        console.error('获取定位失败：', err);
+        wx.showToast({ title: '获取定位失败，请检查权限', icon: 'none' });
+      }
+    });
   }
 });

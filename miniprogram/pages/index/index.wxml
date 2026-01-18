@@ -14,7 +14,38 @@
     </view>
   </view>
 
-  <!-- 以下代码保持不变 -->
+  <!-- ========== 新增：我的备注（含家庭位置设置） ========== -->
+  <view style="margin-bottom: 25rpx;">
+    <view style="font-size: 32rpx; color: #333; margin-bottom: 10rpx;">我的备注</view>
+    <view style="background: white; border-radius: 12rpx; padding: 12rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
+      <!-- 姓名输入行 -->
+      <view style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15rpx;">
+        <input 
+          style="width: 60%; padding: 8rpx; border: 1px solid #eee; border-radius: 8rpx; font-size: 28rpx;"
+          placeholder="请输入您的姓名或简称（如：张三/老张）"
+          value="{{userName}}"
+          bindinput="onUserNameInput"
+        />
+        <button 
+          bindtap="saveUserName"
+          style="background: #1890ff; color: white; border: none; padding: 8rpx 0; border-radius: 12rpx; font-size: 26rpx; width: 30%; box-shadow: 0 4rpx 8rpx rgba(24, 144, 255, 0.3);">
+          保存
+        </button>
+      </view>
+      <!-- 家庭位置设置行 -->
+      <view style="display: flex; justify-content: space-between; align-items: center;">
+        <view style="font-size: 28rpx; color: #666;">
+          {{homeLocation ? '家庭位置已设置' : '未设置家庭位置'}}
+        </view>
+        <button 
+          bindtap="setHomeLocation"
+          style="background: #07c160; color: white; border: none; padding: 8rpx 0; border-radius: 12rpx; font-size: 26rpx; width: 30%; box-shadow: 0 4rpx 8rpx rgba(7, 193, 96, 0.3);">
+          设置位置
+        </button>
+      </view>
+    </view>
+  </view>
+
   <!-- 紧急呼叫 -->
   <view style="margin-bottom: 25rpx;">
     <view style="font-size: 32rpx; color: #333; margin-bottom: 10rpx;">紧急呼叫</view>
@@ -22,6 +53,15 @@
       <button bindtap="callPhone" data-phone="120" style="background: white; border: 1px solid #eee; color: #333; padding: 8rpx 15rpx; border-radius: 8rpx; font-size: 26rpx; flex: 1;">120 急救中心</button>
       <button bindtap="callPhone" data-phone="110" style="background: white; border: 1px solid #eee; color: #333; padding: 8rpx 15rpx; border-radius: 8rpx; font-size: 26rpx; flex: 1;">110 报警电话</button>
       <button bindtap="callPhone" data-phone="119" style="background: white; border: 1px solid #eee; color: #333; padding: 8rpx 15rpx; border-radius: 8rpx; font-size: 26rpx; flex: 1;">119 火警电话</button>
+    </view>
+  </view>
+
+  <!-- ========== 新增：紧急工具（一键回家 + 一键发送定位） ========== -->
+  <view style="margin-bottom: 25rpx;">
+    <view style="font-size: 32rpx; color: #333; margin-bottom: 10rpx;">紧急工具</view>
+    <view style="background: white; border-radius: 12rpx; padding: 15rpx; display: flex; gap: 10rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
+      <button bindtap="goHome" style="background: #ff7d00; color: white; border: none; padding: 8rpx 0; border-radius: 12rpx; font-size: 26rpx; flex: 1; box-shadow: 0 4rpx 8rpx rgba(255, 125, 0, 0.3);">一键回家</button>
+      <button bindtap="sendLocation" style="background: #ff7d00; color: white; border: none; padding: 8rpx 0; border-radius: 12rpx; font-size: 26rpx; flex: 1; box-shadow: 0 4rpx 8rpx rgba(255, 125, 0, 0.3);">一键发送定位</button>
     </view>
   </view>
 
