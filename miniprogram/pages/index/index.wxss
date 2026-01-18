@@ -22,3 +22,7 @@
   color: #666;
   margin-top: 10rpx;
 }
+.hover-class {
+  transform: scale(0.95);
+  box-shadow: 0 4rpx 12rpx rgba(7, 193, 96, 0.4);
+}
