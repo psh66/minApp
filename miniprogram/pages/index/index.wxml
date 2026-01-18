@@ -115,54 +115,55 @@
 
   <!-- 弹窗部分（原有内容不变） -->
   <view wx:if="{{showEmailDialog}}" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999; display: flex; align-items: center; justify-content: center;">
-    <view style="width: 80%; background: white; border-radius: 16rpx; padding: 30rpx; box-shadow: 0 6rpx 16rpx rgba(0,0,0,0.1);">
-      <view style="font-size: 34rpx; font-weight: bold; text-align: center; margin-bottom: 30rpx; color: #333;">添加提醒邮箱</view>
-      <view style="display: flex; align-items: center; margin-bottom: 30rpx;">
-        <view style="width: 100rpx; font-size: 32rpx; text-align: right; color: #333;">邮箱</view>
-        <van-field
-          placeholder="用于连续未签到时接收提醒邮件"
-          value="{{email}}"
-          bind:input="emailChange"
-          type="email"
-          custom-style="font-size: 32rpx; flex: 1; border: 1px solid #eee; border-radius: 6rpx; padding: 12rpx; margin-left: 10rpx;"
-          placeholder-style="text-align: left; color: #999;"
-        />
-      </view>
-      <view style="display: flex; gap: 20rpx;">
-        <button bindtap="bindEmail" style="flex: 1; background: #07c160; color: white; padding: 15rpx 0; border-radius: 8rpx; font-size: 32rpx; border: none;">保存</button>
-        <button bindtap="cancelBindEmail" style="flex: 1; background: #f5f5f5; color: #333; padding: 15rpx 0; border-radius: 8rpx; font-size: 32rpx; border: none;">取消</button>
-      </view>
+  <view style="width: 80%; background: white; border-radius: 16rpx; padding: 30rpx; box-shadow: 0 6rpx 16rpx rgba(0,0,0,0.1);">
+    <view style="font-size: 34rpx; font-weight: bold; text-align: center; margin-bottom: 30rpx; color: #333;">添加提醒邮箱</view>
+    <view style="display: flex; align-items: center; margin-bottom: 30rpx;">
+      <view style="width: 100rpx; font-size: 32rpx; text-align: right; color: #333;">邮箱</view>
+      <van-field
+        placeholder="用于连续未签到时接收提醒邮件"
+        value="{{email}}"
+        bind:change="emailChange"
+        type="email"
+        custom-style="font-size: 32rpx; flex: 1; border: 1px solid #eee; border-radius: 6rpx; padding: 12rpx; margin-left: 10rpx;"
+        placeholder-style="text-align: left; color: #999;"
+      />
+    </view>
+    <view style="display: flex; gap: 20rpx;">
+      <button bindtap="bindEmail" style="flex: 1; background: #07c160; color: white; padding: 15rpx 0; border-radius: 8rpx; font-size: 32rpx; border: none;">保存</button>
+      <button bindtap="cancelBindEmail" style="flex: 1; background: #f5f5f5; color: #333; padding: 15rpx 0; border-radius: 8rpx; font-size: 32rpx; border: none;">取消</button>
     </view>
   </view>
+</view>
 
   <view wx:if="{{showAddDialog}}" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999; display: flex; align-items: center; justify-content: center;">
     <view style="width: 80%; background: white; border-radius: 16rpx; padding: 30rpx; box-shadow: 0 6rpx 16rpx rgba(0,0,0,0.1);">
-      <view style="font-size: 34rpx; font-weight: bold; text-align: center; margin-bottom: 30rpx; color: #333;">添加紧急联系人</view>
-      <van-field
-        label="联系人姓名"
-        placeholder="请输入姓名"
-        value="{{contactForm.name}}"
-        bind:input="onFormChange" 
-        data-key="name"
-        custom-style="font-size: 32rpx; margin-bottom: 20rpx; border: 1px solid #eee; border-radius: 6rpx; padding: 12rpx;"
-        label-style="width: 150rpx; color: #333;"
-      />
-      <van-field
-        label="手机号"
-        placeholder="请输入手机号"
-        value="{{contactForm.phone}}"
-        bind:input="onFormChange"  
-        data-key="phone"
-        type="number"
-        maxlength="11"
-        custom-style="font-size: 32rpx; margin-bottom: 30rpx; border: 1px solid #eee; border-radius: 6rpx; padding: 12rpx;"
-        label-style="width: 120rpx; color: #333;"
-      />
-      <view style="display: flex; gap: 20rpx;">
-        <button bindtap="onConfirmAddContact" style="flex: 1; background: #07c160; color: white; padding: 15rpx 0; border-radius: 8rpx; font-size: 32rpx; border: none;">保存</button>
-        <button bindtap="onCancelAddContact" style="flex: 1; background: #f5f5f5; color: #333; padding: 15rpx 0; border-radius: 8rpx; font-size: 32rpx; border: none;">取消</button>
-      </view>
-    </view>
+  <view style="font-size: 34rpx; font-weight: bold; text-align: center; margin-bottom: 30rpx; color: #333;">添加紧急联系人</view>
+  <!-- 统一label宽度为150rpx，确保布局对齐 -->
+  <van-field
+    label="联系人姓名"
+    placeholder="请输入姓名"
+    value="{{contactForm.name}}"
+    bind:change="onFormChange"
+    data-key="name"
+    custom-style="font-size: 32rpx; margin-bottom: 20rpx; border: 1px solid #eee; border-radius: 6rpx; padding: 12rpx;"
+    label-style="width: 150rpx; color: #333;"
+  />
+  <van-field
+    label="手机号"
+    placeholder="请输入手机号"
+    value="{{contactForm.phone}}"
+    bind:change="onFormChange"
+    data-key="phone"
+    type="number"
+    maxlength="11"
+    custom-style="font-size: 32rpx; margin-bottom: 30rpx; border: 1px solid #eee; border-radius: 6rpx; padding: 12rpx;"
+    label-style="width: 150rpx; color: #333;"
+  />
+  <view style="display: flex; gap: 20rpx;">
+    <button bindtap="onConfirmAddContact" style="flex: 1; background: #07c160; color: white; padding: 15rpx 0; border-radius: 8rpx; font-size: 32rpx; border: none;">保存</button>
+    <button bindtap="onCancelAddContact" style="flex: 1; background: #f5f5f5; color: #333; padding: 15rpx 0; border-radius: 8rpx; font-size: 32rpx; border: none;">取消</button>
+  </view>
+</view>
   </view>
 
   <view wx:if="{{showPayDialog}}" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999; display: flex; align-items: center; justify-content: center;">

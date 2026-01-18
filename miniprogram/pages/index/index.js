@@ -145,8 +145,11 @@ Page({
   },
 
   onFormChange(e) {
-    const { key } = e.currentTarget.dataset;
-    this.setData({ [`contactForm.${key}`]: e.detail.value });
+    const key = e.currentTarget.dataset.key;
+  const value = e.detail; // van-field的输入值在e.detail中，不是e.detail.value
+  this.setData({
+    [`contactForm.${key}`]: value
+  });
   },
 
   showAddDialog() {
@@ -155,7 +158,10 @@ Page({
   },
 
   onCancelAddContact() {
-    this.setData({ showAddDialog: false, contactForm: { name: '', phone: '' } });
+    this.setData({
+      showAddDialog: false,
+      contactForm: { name: '', phone: '' } // 重置表单
+    });
   },
 
   async onConfirmAddContact() {
@@ -163,10 +169,13 @@ Page({
     try {
       const app = getApp();
       const { name, phone } = this.data.contactForm;
-      if (!name) return wx.showToast({ title: '请输入姓名', icon: 'none' });
+      console.log('name', name, phone); // 现在能正确打印输入值
+      
+      if (!name.trim()) return wx.showToast({ title: '请输入姓名', icon: 'none' });
       if (!/^1[3-9]\d{9}$/.test(phone)) return wx.showToast({ title: '手机号格式错误', icon: 'none' });
+      
       await contactsCol.add({
-        data: { name, phone, _openid: app.globalData.openid, createTime: db.serverDate() }
+        data: { name, phone, openid: app.globalData.openid, createTime: db.serverDate() }
       });
       wx.showToast({ title: '添加成功' });
       this.onCancelAddContact();
@@ -202,7 +211,9 @@ Page({
   },
 
   emailChange(e) {
-    this.setData({ email: e.detail.value });
+    this.setData({
+      email: e.detail // 关键：不是e.detail.value，直接取e.detail
+    });
   },
 
   showEmailDialog() {
@@ -219,8 +230,23 @@ Page({
     try {
       const app = getApp();
       const { email } = this.data;
-      if (!/^[a-zA-Z0-9._%-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$/.test(email)) return wx.showToast({ title: '邮箱格式错误', icon: 'none' });
-      await emailsCol.add({ data: { email, _openid: app.globalData.openid, createTime: db.serverDate() } });
+      console.log('email', email); // 现在能正确打印输入的邮箱
+
+      // 完善校验：空值+格式
+      if (!email.trim()) return wx.showToast({ title: '请输入邮箱', icon: 'none' });
+      // 更通用的邮箱正则
+      const emailReg = /^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$/;
+      if (!emailReg.test(email)) return wx.showToast({ title: '邮箱格式错误', icon: 'none' });
+
+      // 关键：移除_openid字段（云开发自动添加）
+      await emailsCol.add({ 
+        data: { 
+          email, 
+          openid: app.globalData.openid,
+          createTime: db.serverDate() 
+        } 
+      });
+
       wx.showToast({ title: '添加成功' });
       this.cancelBindEmail();
       this.checkUserEmail();
