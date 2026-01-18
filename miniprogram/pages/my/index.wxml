@@ -1,0 +1,90 @@
+<!--pages/my/index.wxml--><view class="container" style="padding: 20rpx; background: #f5f5f5; min-height: 100vh;">
+  <!-- 用户信息卡片 -->
+  <view style="background: white; border-radius: 16rpx; padding: 25rpx; margin-bottom: 25rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
+    <view style="display: flex; align-items: center; margin-bottom: 20rpx;">
+      <view style="width: 100rpx; height: 100rpx; border-radius: 50%; background: linear-gradient(135deg, #1890ff, #07c160); display: flex; align-items: center; justify-content: center; margin-right: 20rpx;">
+        <text style="font-size: 40rpx; color: white; font-weight: bold;">{{userName.charAt(0) || '用'}}</text>
+      </view>
+      <view>
+        <view style="font-size: 34rpx; color: #333; font-weight: 500;">{{userName || '未设置昵称'}}</view>
+        <view style="font-size: 24rpx; color: #666; margin-top: 4rpx;">{{userTypeText}}</view>
+      </view>
+    </view>
+    <view style="display: flex; justify-content: space-between; padding: 15rpx 0; border-top: 1px solid #f5f5f5;">
+    <view style="font-size: 26rpx; color: #666;">服务有效期</view>
+    <!-- 1. 先校验时间是否有效，无效则显示兜底；2. 过期状态色值兜底 -->
+    <view style="font-size: 26rpx; color: {{isTrialExpired === true ? '#ff4d4f' : '#07c160'}}; font-weight: 500;">
+  {{validTimeText}}
+</view>
+  </view>
+  </view>
+
+  <!-- 功能设置 -->
+  <view style="background: white; border-radius: 16rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05); margin-bottom: 25rpx;">
+    <view bindtap="goToVersion" style="padding: 20rpx; border-bottom: 1px solid #f5f5f5; display: flex; justify-content: space-between; align-items: center;">
+      <view style="font-size: 30rpx; color: #333;">版本管理</view>
+      <view style="display: flex; align-items: center;">
+        <view style="font-size: 26rpx; color: #666; margin-right: 10rpx;">{{isFormalVersion ? '正式版' : '试用版'}}</view>
+        <view style="width: 16rpx; height: 16rpx; border-top: 2rpx solid #ccc; border-right: 2rpx solid #ccc; transform: rotate(45deg);"></view>
+      </view>
+    </view>
+    <!-- <view bindtap="goToSignHistory" style="padding: 20rpx; border-bottom: 1px solid #f5f5f5; display: flex; justify-content: space-between; align-items: center;">
+      <view style="font-size: 30rpx; color: #333;">签到记录</view>
+      <view style="width: 16rpx; height: 16rpx; border-top: 2rpx solid #ccc; border-right: 2rpx solid #ccc; transform: rotate(45deg);"></view>
+    </view> -->
+    <!-- <view bindtap="showPrivacyDialog" style="padding: 20rpx; border-bottom: 1px solid #f5f5f5; display: flex; justify-content: space-between; align-items: center;">
+      <view style="font-size: 30rpx; color: #333;">隐私设置</view>
+      <view style="width: 16rpx; height: 16rpx; border-top: 2rpx solid #ccc; border-right: 2rpx solid #ccc; transform: rotate(45deg);"></view>
+    </view> -->
+    <!-- <view bindtap="clearCache" style="padding: 20rpx; display: flex; justify-content: space-between; align-items: center;">
+      <view style="font-size: 30rpx; color: #333;">清除缓存</view>
+      <view style="width: 16rpx; height: 16rpx; border-top: 2rpx solid #ccc; border-right: 2rpx solid #ccc; transform: rotate(45deg);"></view>
+    </view> -->
+  </view>
+
+  <!-- 关于我们 -->
+  <view style="background: white; border-radius: 16rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05); margin-bottom: 25rpx;">
+    <view bindtap="showAboutDialog" style="padding: 20rpx; border-bottom: 1px solid #f5f5f5; display: flex; justify-content: space-between; align-items: center;">
+      <view style="font-size: 30rpx; color: #333;">关于我们</view>
+      <view style="width: 16rpx; height: 16rpx; border-top: 2rpx solid #ccc; border-right: 2rpx solid #ccc; transform: rotate(45deg);"></view>
+    </view>
+    <button 
+  open-type="contact" 
+  session-from="咱爸咱妈平安签-联系客服入口"
+  style="width: 100%; text-align: left; padding: 20rpx; margin: 0; border: none; background: transparent; display: flex; justify-content: space-between; align-items: center;"
+>
+  <view style="font-size: 30rpx; color: #333;">联系客服</view>
+  <view style="width: 12rpx; height: 12rpx; border-top: 2rpx solid #c8c8cd; border-right: 2rpx solid #c8c8cd; transform: rotate(45deg);"></view>
+</button>
+  </view>
+
+  <!-- 退出登录 -->
+  <!-- <button bindtap="logout" style="width: 100%; background: #ff4d4f; color: white; border: none; padding: 20rpx 0; border-radius: 16rpx; font-size: 30rpx; box-shadow: 0 4rpx 8rpx rgba(255, 77, 79, 0.3);">退出登录</button> -->
+
+  <!-- 隐私弹窗 -->
+  <view wx:if="{{showPrivacyDialog}}" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999; display: flex; align-items: center; justify-content: center;">
+    <view style="width: 80%; background: white; border-radius: 16rpx; padding: 30rpx; box-shadow: 0 6rpx 16rpx rgba(0,0,0,0.1);">
+      <view style="font-size: 34rpx; font-weight: bold; text-align: center; margin-bottom: 20rpx; color: #333;">隐私声明</view>
+      <view style="font-size: 26rpx; color: #666; line-height: 1.6; margin-bottom: 30rpx; max-height: 400rpx; overflow-y: auto;">
+        1. 我们仅收集必要的用户信息（姓名、手机号、位置等）用于提供服务<br/>
+        2. 您的信息将仅用于紧急呼叫、签到提醒等核心功能<br/>
+        3. 我们不会向第三方共享您的个人信息，除非法律要求<br/>
+        4. 您可以随时删除或修改您的个人信息
+      </view>
+      <button bindtap="closePrivacyDialog" style="width: 100%; background: #1890ff; color: white; border: none; padding: 15rpx 0; border-radius: 12rpx; font-size: 28rpx;">我知道了</button>
+    </view>
+  </view>
+
+  <!-- 关于弹窗 -->
+  <view wx:if="{{showAboutDialog}}" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999; display: flex; align-items: center; justify-content: center;">
+    <view style="width: 80%; background: white; border-radius: 16rpx; padding: 30rpx; box-shadow: 0 6rpx 16rpx rgba(0,0,0,0.1);">
+      <view style="font-size: 34rpx; font-weight: bold; text-align: center; margin-bottom: 20rpx; color: #333;">关于「咱爸咱妈平安签」</view>
+      <view style="font-size: 26rpx; color: #666; line-height: 1.6; margin-bottom: 30rpx;">
+        开发者：咱爸咱妈平安签团队<br/>
+        功能：每日签到、紧急呼叫、位置共享、未签到提醒<br/>
+        宗旨：守护独居老人的安全与健康
+      </view>
+      <button bindtap="closeAboutDialog" style="width: 100%; background: #1890ff; color: white; border: none; padding: 15rpx 0; border-radius: 12rpx; font-size: 28rpx;">关闭</button>
+    </view>
+  </view>
+</view>

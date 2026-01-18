@@ -26,3 +26,14 @@
   transform: scale(0.95);
   box-shadow: 0 4rpx 12rpx rgba(7, 193, 96, 0.4);
 }
+button::after {
+  border: none;
+}
+.container {
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+input:focus {
+  border-color: #1890ff;
+  outline: none;
+}
