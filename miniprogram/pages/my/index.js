@@ -109,28 +109,24 @@ Page({
   async onRemindSwitchChange(e) {
     try {
       const enableRemind = e.detail.value;
-      const app = getApp();
-      // 更新数据库中的提醒开关状态
-      await usersCol.where({ _openid: app.globalData.openid }).update({
-        data: {
-          enableRemind
-        }
+      console.log('📌 调用云函数更新开关，状态：', enableRemind);
+      
+      // 调用云函数更新
+      const res = await wx.cloud.callFunction({
+        name: 'updateUserInfo', // 必须和云函数文件夹名一致
+        data: { enableRemind }
       });
-      // 更新页面显示
-      this.setData({
-        'userInfo.enableRemind': enableRemind
-      });
-      // 提示用户操作结果
-      wx.showToast({
-        title: enableRemind ? '已开启提醒' : '已关闭提醒',
-        icon: 'success'
-      });
+  
+      if (res.result.success) {
+        this.setData({ 'userInfo.enableRemind': enableRemind });
+        wx.showToast({ title: enableRemind ? '已开启' : '已关闭', icon: 'success' });
+        console.log('✅ 云函数调用成功：', res);
+      } else {
+        throw new Error(res.result.error);
+      }
     } catch (err) {
-      console.error('更新提醒开关失败：', err);
-      wx.showToast({
-        title: '操作失败，请重试',
-        icon: 'none'
-      });
+      console.error('❌ 操作失败：', err);
+      wx.showToast({ title: '操作失败', icon: 'none' });
     }
   },
 
