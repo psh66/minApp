@@ -1,0 +1,26 @@
+/* 提醒开关样式 */
+.setting-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20rpx;
+  border-bottom: 1rpx solid #f0f0f0;
+  background: white;
+  margin-top: 20rpx;
+}
+.setting-left {
+  display: flex;
+  flex-direction: column;
+}
+.setting-label {
+  font-size: 32rpx;
+  color: #333;
+  margin-bottom: 4rpx;
+}
+.setting-subtitle {
+  font-size: 24rpx;
+  color: #999;
+}
+.setting-switch {
+  transform: scale(0.8);
+}

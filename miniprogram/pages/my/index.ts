@@ -10,7 +10,8 @@ Page({
     isTrialExpired: false,
     userTypeText: '',
     showPrivacyDialog: false,
-    showAboutDialog: false
+    showAboutDialog: false,
+     userInfo: {}
   },
 
   onLoad() {

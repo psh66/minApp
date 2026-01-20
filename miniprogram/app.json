@@ -10,7 +10,9 @@
     "backgroundTextStyle": "light",
     "navigationBarBackgroundColor": "#F6F6F6",
     "navigationBarTitleText": "咱爸俺妈平安签",
-    "navigationBarTextStyle": "black"
+    "navigationBarTextStyle": "black",
+    "enableShareAppMessage": true,
+    "enableShareTimeline": true
   },
   "permission": {
     "scope.userLocation": {

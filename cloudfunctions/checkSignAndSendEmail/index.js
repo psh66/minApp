@@ -54,6 +54,22 @@ exports.main = async (event, context) => {
       const emailList = userEmailMap[openid];
       console.log(`👤 开始处理用户${openid}，邮箱：`, emailList);
 
+      // ===== 新增：获取用户提醒开关状态 =====
+      const userRes = await db
+        .collection("users")
+        .where({ _openid: openid })
+        .limit(1)
+        .get();
+      // 默认开启提醒（如果用户没有该字段，视为开启）
+      const enableRemind = userRes.data.length > 0 ? userRes.data[0].enableRemind ?? true : true;
+      console.log(`👤 用户${openid}提醒开关状态：${enableRemind ? '开启' : '关闭'}`);
+      
+      // 如果开关关闭，直接跳过该用户
+      if (!enableRemind) {
+        console.log(`🚫 用户${openid}已关闭提醒，跳过发邮件`);
+        continue;
+      }
+
       // 查询该用户的所有签到记录，按时间倒序取最近一条
       const signRes = await db
         .collection("signRecords")
@@ -66,11 +82,6 @@ exports.main = async (event, context) => {
       let actualDays = 0;
       if (signRes.data.length === 0) {
         // 从未签到过：用lastPayTime作为初始时间
-        const userRes = await db
-          .collection("users")
-          .where({ _openid: openid })
-          .limit(1)
-          .get();
         const initTime =
           userRes.data.length > 0 ? new Date(userRes.data[0].lastPayTime) : now; // 若没有lastPayTime，用当前时间
         actualDays = Math.ceil((now - initTime) / (1000 * 60 * 60 * 24));
@@ -86,11 +97,6 @@ exports.main = async (event, context) => {
         console.log(`⚠️ 用户${openid}未签到${actualDays}天，准备发邮件`);
 
         // 获取用户和联系人信息
-        const userRes = await db
-          .collection("users")
-          .where({ _openid: openid })
-          .limit(1)
-          .get();
         const userName =
           userRes.data.length > 0 ? userRes.data[0].name : "用户";
         const contactRes = await db

@@ -22,7 +22,18 @@ Page({
     serviceStartTime: '',
     serviceEndTime: ''
   },
-
+  onShareAppMessage() {
+    return {
+      title: '咱爸咱妈平安签，守护家人安全',
+      path: '/pages/index/index'
+    }
+  },
+  // 开启分享到朋友圈
+  onShareTimeline() {
+    return {
+      title: '咱爸咱妈平安签，守护家人安全'
+    }
+  },
   onLoad() {
     const isSignedCache = wx.getStorageSync('isSignedToday');
     if (isSignedCache) this.setData({ isSigned: true });
