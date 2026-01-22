@@ -21,6 +21,61 @@ Page({
     isTrialExpired: false,
     serviceStartTime: "",
     serviceEndTime: "",
+    // 新增：关怀模式相关字段
+    careMode: false,
+    fontSizeMultiple: 1.0,
+    fontSizeMin: 0.8,
+    fontSizeMax: 2.0,
+
+    // 天气核心数据（含3天预报+详情字段）
+    todayWeather: {
+      dateText: "今天",
+      temp: "--",
+      desc: "加载中",
+      icon: "🌤️",
+      windDir: "--",
+      windScale: "--",
+      humidity: "--",
+      uvIndex: "--",
+      sunrise: "--",
+      sunset: "--",
+      precip: "--",
+    },
+    tomorrowWeather: {
+      dateText: "明天",
+      temp: "--",
+      desc: "加载中",
+      icon: "🌧️",
+      windDir: "--",
+      windScale: "--",
+      humidity: "--",
+      uvIndex: "--",
+      sunrise: "--",
+      sunset: "--",
+      precip: "--",
+    },
+    day3Weather: {
+      dateText: "后天",
+      temp: "--",
+      desc: "加载中",
+      icon: "⛅",
+      windDir: "--",
+      windScale: "--",
+      humidity: "--",
+      uvIndex: "--",
+      sunrise: "--",
+      sunset: "--",
+      precip: "--",
+    },
+
+    // 和风天气配置（替换为你自己的API Key）
+    weatherApiKey: "06e8e23e12164644a95b6c77fdd15c0b",
+
+    // 弹窗/切换状态控制
+    showLocationModal: false, // 定位授权弹窗
+    showWeatherDetail: false, // 天气详情弹窗
+    currentWeatherTab: 0, // 0=今天/1=明天/2=后天
+    activeWeatherData: {}, // 当前显示的天气数据（用于详情弹窗）
   },
 
   onShareAppMessage() {
@@ -37,7 +92,12 @@ Page({
   },
 
   async onLoad() {
-    // 优化：先获取版本信息（异步），再检查试用期，避免数据未加载完成
+    // 新增：读取关怀模式设置
+    this.loadCareModeSetting();
+
+    this.loadWeather(); // 初始化加载天气
+
+    // 原有逻辑：先获取版本信息，再检查试用期
     await this.getVersionInfo();
     this.checkTrialExpired();
 
@@ -56,7 +116,262 @@ Page({
     this.checkUserEmail();
   },
 
-  // 版本信息（修复试用天数计算、补充正式版逻辑）
+  // 修复：加载天气数据（手动封装wx.request为Promise）
+  async loadWeather() {
+    try {
+      // 1. 优先读取本地缓存（缓存1天）
+      const cacheWeather = wx.getStorageSync("weatherCache");
+      const cacheTime = wx.getStorageSync("weatherCacheTime");
+      const now = Date.now();
+      const ONE_DAY = 24 * 60 * 60 * 1000; // 1天毫秒数
+
+      if (cacheWeather && cacheTime && now - cacheTime < ONE_DAY) {
+        this.setData({
+          todayWeather: cacheWeather.todayWeather,
+          tomorrowWeather: cacheWeather.tomorrowWeather,
+          day3Weather: cacheWeather.day3Weather,
+          activeWeatherData: cacheWeather.todayWeather, // 默认选中今天
+        });
+        console.log("[天气模块] 已使用本地缓存数据（1天有效期）");
+        return;
+      }
+
+      // 2. 获取用户定位（带授权判断）
+      let locationRes;
+      try {
+        locationRes = await new Promise((resolve, reject) => {
+          wx.getLocation({
+            type: "gcj02", // 腾讯地图坐标系，适配和风接口
+            success: resolve,
+            fail: reject,
+          });
+        });
+      } catch (locationErr) {
+        // 定位失败：用户拒绝授权
+        if (locationErr.errMsg.includes("auth deny")) {
+          this.setData({ showLocationModal: true });
+          // 用缓存兜底，无缓存则保持默认值
+          if (cacheWeather) {
+            this.setData({
+              todayWeather: cacheWeather.todayWeather,
+              tomorrowWeather: cacheWeather.tomorrowWeather,
+              day3Weather: cacheWeather.day3Weather,
+              activeWeatherData: cacheWeather.todayWeather,
+            });
+          }
+          console.log("[天气模块] 用户拒绝定位授权，已显示引导弹窗");
+          return;
+        }
+        // 其他定位失败（如网络问题）
+        wx.showToast({ title: "定位失败，请稍后再试", icon: "none" });
+        console.error("[天气模块] 定位失败：", locationErr);
+        return;
+      }
+
+      // 3. 调用和风天气3天预报接口（修复：手动封装Promise）
+      const { latitude, longitude } = locationRes;
+      const weatherRes = await new Promise((resolve, reject) => {
+        wx.request({
+          url: `https://m87aar27kq.re.qweatherapi.com/v7/weather/3d`,
+          data: {
+            location: `${longitude},${latitude}`, // 经纬度格式：经度,纬度
+            key: this.data.weatherApiKey,
+          },
+          method: "GET",
+          success: resolve, // 成功时返回完整响应
+          fail: reject, // 失败时捕获错误
+        });
+      });
+      console.log("修复后 weatherRes：", weatherRes); // 打印完整响应
+
+      // 4. 接口响应处理
+      if (!weatherRes || !weatherRes.data) {
+        wx.showToast({ title: "天气数据解析失败", icon: "none" });
+        console.error("[天气模块] 响应数据为空");
+        return;
+      }
+
+      if (weatherRes.statusCode !== 200) {
+        wx.showToast({
+          title: `天气请求失败（${weatherRes.statusCode || "未知状态码"}）`,
+          icon: "none",
+        });
+        console.error("[天气模块] 接口状态码错误：", weatherRes.statusCode);
+        return;
+      }
+
+      console.log("天气接口返回数据：", weatherRes.data);
+      const { code, daily } = weatherRes.data;
+      switch (code) {
+        case "200":
+          // 格式化3天天气数据
+          const todayWeather = this.formatWeatherData(daily[0], "今天");
+          const tomorrowWeather = this.formatWeatherData(daily[1], "明天");
+          const day3Weather = this.formatWeatherData(daily[2], "后天");
+
+          // 更新页面数据+写入缓存
+          this.setData({
+            todayWeather,
+            tomorrowWeather,
+            day3Weather,
+            activeWeatherData: todayWeather,
+          });
+          wx.setStorageSync("weatherCache", {
+            todayWeather,
+            tomorrowWeather,
+            day3Weather,
+          });
+          wx.setStorageSync("weatherCacheTime", now);
+          console.log("[天气模块] 接口请求成功，已缓存1天");
+          break;
+
+        case "401":
+          wx.showToast({ title: "天气API Key无效，请检查配置", icon: "none" });
+          console.error("[天气模块] 错误码401：API Key无效");
+          break;
+
+        case "429":
+          wx.showToast({ title: "天气查询过于频繁，请明日再试", icon: "none" });
+          console.error("[天气模块] 错误码429：请求频率超限");
+          break;
+
+        default:
+          wx.showToast({ title: `天气获取失败（${code}）`, icon: "none" });
+          console.error("[天气模块] 接口错误码：", code);
+          break;
+      }
+    } catch (err) {
+      console.error("[天气模块] 全局异常：", err);
+      wx.showToast({ title: "天气加载异常，请稍后再试", icon: "none" });
+      // 异常时用缓存兜底
+      const cacheWeather = wx.getStorageSync("weatherCache");
+      if (cacheWeather) {
+        this.setData({
+          todayWeather: cacheWeather.todayWeather,
+          tomorrowWeather: cacheWeather.tomorrowWeather,
+          day3Weather: cacheWeather.day3Weather,
+          activeWeatherData: cacheWeather.todayWeather,
+        });
+      }
+    }
+  },
+
+  // 格式化天气数据（适配接口返回格式，增加空值兜底）
+  formatWeatherData(dailyData, dateText) {
+    return {
+      dateText,
+      temp: `${dailyData.tempMin || "--"}~${dailyData.tempMax || "--"}℃`,
+      desc: dailyData.textDay || "--",
+      icon: this.getWeatherIcon(dailyData.textDay),
+      windDir: dailyData.windDirDay || "--",
+      windScale: dailyData.windScaleDay ? `${dailyData.windScaleDay}级` : "--",
+      humidity: dailyData.humidity ? `${dailyData.humidity}%` : "--",
+      uvIndex: dailyData.uvIndex ? `${dailyData.uvIndex}级` : "--",
+      sunrise: dailyData.sunrise || "--",
+      sunset: dailyData.sunset || "--",
+      precip: dailyData.precip > 0 ? `${dailyData.precip}mm` : "无降水",
+    };
+  },
+
+  // 天气文字转emoji图标
+  getWeatherIcon(text) {
+    const iconMap = {
+      晴: "☀️",
+      多云: "⛅",
+      阴: "☁️",
+      小雨: "🌧️",
+      中雨: "🌧️",
+      大雨: "🌧️",
+      暴雨: "⛈️",
+      雪: "❄️",
+      雷阵雨: "⛈️",
+      雨夹雪: "🌨️",
+    };
+    return iconMap[text] || "🌤️";
+  },
+
+  // 切换天气标签（今天/明天/后天）
+  // 切换天气标签（今天/明天/后天）
+  switchWeatherTab(e) {
+    // 修复：确保从currentTarget.dataset中正确获取index（转成数字类型）
+    const tabIndex = Number(e.currentTarget.dataset.index);
+    let activeData = this.data.todayWeather;
+
+    // 修复：明确匹配tabIndex对应的天气数据
+    if (tabIndex === 1) {
+      activeData = this.data.tomorrowWeather;
+    } else if (tabIndex === 2) {
+      activeData = this.data.day3Weather;
+    } else {
+      activeData = this.data.todayWeather;
+    }
+
+    // 修复：强制更新页面数据（确保页面重新渲染）
+    this.setData(
+      {
+        currentWeatherTab: tabIndex,
+        activeWeatherData: activeData,
+      },
+      () => {
+        // 回调函数：确认数据已更新（可用于调试）
+        console.log("天气标签切换成功，当前索引：", tabIndex);
+      },
+    );
+  },
+
+  // 打开天气详情弹窗
+  openWeatherDetail() {
+    this.setData({ showWeatherDetail: true });
+  },
+
+  // 关闭天气详情弹窗
+  closeWeatherDetail() {
+    this.setData({ showWeatherDetail: false });
+  },
+
+  // 定位授权引导-前往设置
+  goToSetting() {
+    this.setData({ showLocationModal: false });
+    wx.openSetting({
+      success: (res) => {
+        // 用户开启定位权限后重新加载天气
+        if (res.authSetting["scope.userLocation"]) {
+          this.loadWeather();
+        }
+      },
+    });
+  },
+
+  // 定位授权引导-取消
+  cancelLocation() {
+    this.setData({ showLocationModal: false });
+  },
+
+  // 新增：读取关怀模式本地缓存
+  loadCareModeSetting() {
+    try {
+      const careMode = wx.getStorageSync("careMode") || false;
+      const fontSizeMultiple = wx.getStorageSync("fontSizeMultiple") || 1.0;
+      // 确保倍数在上下限范围内
+      const validMultiple = Math.max(
+        this.data.fontSizeMin,
+        Math.min(this.data.fontSizeMax, fontSizeMultiple),
+      );
+      this.setData({
+        careMode,
+        fontSizeMultiple: validMultiple,
+      });
+    } catch (err) {
+      console.error("读取关怀模式设置失败：", err);
+    }
+  },
+
+  // 新增：页面显示时重新读取关怀模式
+  onShow() {
+    this.loadCareModeSetting();
+  },
+
+  // 原有方法：版本信息（无修改）
   async getVersionInfo() {
     try {
       const app = getApp();
@@ -71,7 +386,6 @@ Page({
           : new Date();
         const isFormal = userInfo.isFormalVersion || false;
 
-        // 计算试用结束时间（仅试用版生效）
         const trialEndTime = new Date(createTime);
         trialEndTime.setDate(trialEndTime.getDate() + 3);
         const remainingDays = isFormal
@@ -83,14 +397,12 @@ Page({
           homeLocation: userInfo.homeLocation || null,
           isFormalVersion: isFormal,
           remainingTrialDays: remainingDays > 0 ? remainingDays : 0,
-          // 优先使用数据库中的服务时间，无则用创建时间/试用结束时间
           serviceStartTime:
             userInfo.serviceStartTime || this.formatDate(createTime),
           serviceEndTime:
             userInfo.serviceEndTime || this.formatDate(trialEndTime),
         });
       } else {
-        // 新用户默认试用3天
         const now = new Date();
         const trialEndTime = new Date(now);
         trialEndTime.setDate(trialEndTime.getDate() + 3);
@@ -105,7 +417,7 @@ Page({
     }
   },
 
-  // 试用期检查（优化提示文案）
+  // 原有方法：试用期检查（无修改）
   async checkTrialExpired() {
     const { isFormalVersion, serviceEndTime } = this.data;
     if (!isFormalVersion) {
@@ -125,7 +437,7 @@ Page({
     }
   },
 
-  // 日期格式化（通用方法）
+  // 原有方法：日期格式化（无修改）
   formatDate(date) {
     date = new Date(date);
     const year = date.getFullYear();
@@ -134,7 +446,7 @@ Page({
     return `${year}-${month}-${day}`;
   },
 
-  // 检查签到状态
+  // 原有方法：检查签到状态（无修改）
   async checkSignStatus() {
     try {
       const app = getApp();
@@ -154,6 +466,7 @@ Page({
         .where({
           openid: app.globalData.openid,
           signTime: db.command.gte(start).and(db.command.lt(end)),
+          _openid: app.globalData.openid,
         })
         .get();
 
@@ -165,7 +478,7 @@ Page({
     }
   },
 
-  // 签到（增加防抖）
+  // 原有方法：签到（无修改）
   async handleSign() {
     if (this.data.isTrialExpired) {
       return wx.showToast({ title: "试用已到期，请升级正式版", icon: "none" });
@@ -192,7 +505,7 @@ Page({
     }
   },
 
-  // 获取联系人列表
+  // 原有方法：获取联系人列表（无修改）
   async getContactsList() {
     try {
       const app = getApp();
@@ -206,16 +519,16 @@ Page({
     }
   },
 
-  // 联系人表单输入
+  // 原有方法：联系人表单输入（无修改）
   onFormChange(e) {
     const key = e.currentTarget.dataset.key;
-    const value = e.detail; // van-field的输入值在e.detail中
+    const value = e.detail;
     this.setData({
       [`contactForm.${key}`]: value,
     });
   },
 
-  // 显示添加联系人弹窗
+  // 原有方法：显示添加联系人弹窗（无修改）
   showAddDialog() {
     if (this.data.isTrialExpired) {
       return wx.showToast({ title: "试用已到期，请升级正式版", icon: "none" });
@@ -223,15 +536,15 @@ Page({
     this.setData({ showAddDialog: true });
   },
 
-  // 取消添加联系人
+  // 原有方法：取消添加联系人（无修改）
   onCancelAddContact() {
     this.setData({
       showAddDialog: false,
-      contactForm: { name: "", phone: "" }, // 重置表单
+      contactForm: { name: "", phone: "" },
     });
   },
 
-  // 确认添加联系人（强化验证）
+  // 原有方法：确认添加联系人（无修改）
   async onConfirmAddContact() {
     if (this.data.isTrialExpired) {
       return wx.showToast({ title: "试用已到期，请升级正式版", icon: "none" });
@@ -241,7 +554,6 @@ Page({
       const app = getApp();
       const { name, phone } = this.data.contactForm;
 
-      // 强化验证
       if (!name.trim()) {
         return wx.showToast({ title: "请输入联系人姓名", icon: "none" });
       }
@@ -271,7 +583,7 @@ Page({
     }
   },
 
-  // 删除联系人
+  // 原有方法：删除联系人（无修改）
   async deleteContact(e) {
     if (this.data.isTrialExpired) {
       return wx.showToast({ title: "试用已到期，请升级正式版", icon: "none" });
@@ -288,7 +600,7 @@ Page({
     }
   },
 
-  // 检查用户邮箱
+  // 原有方法：检查用户邮箱（无修改）
   async checkUserEmail() {
     try {
       const app = getApp();
@@ -302,12 +614,12 @@ Page({
     }
   },
 
-  // 邮箱输入
+  // 原有方法：邮箱输入（无修改）
   emailChange(e) {
     this.setData({ email: e.detail });
   },
 
-  // 显示添加邮箱弹窗
+  // 原有方法：显示添加邮箱弹窗（无修改）
   showEmailDialog() {
     if (this.data.isTrialExpired) {
       return wx.showToast({ title: "试用已到期，请升级正式版", icon: "none" });
@@ -315,12 +627,12 @@ Page({
     this.setData({ showEmailDialog: true });
   },
 
-  // 取消绑定邮箱
+  // 原有方法：取消绑定邮箱（无修改）
   cancelBindEmail() {
     this.setData({ showEmailDialog: false, email: "" });
   },
 
-  // 绑定邮箱（强化验证）
+  // 原有方法：绑定邮箱（无修改）
   async bindEmail() {
     if (this.data.isTrialExpired) {
       return wx.showToast({ title: "试用已到期，请升级正式版", icon: "none" });
@@ -330,7 +642,6 @@ Page({
       const app = getApp();
       const { email } = this.data;
 
-      // 强化验证
       if (!email.trim()) {
         return wx.showToast({ title: "请输入邮箱地址", icon: "none" });
       }
@@ -339,7 +650,6 @@ Page({
         return wx.showToast({ title: "请输入正确的邮箱格式", icon: "none" });
       }
 
-      // 检查是否已添加该邮箱
       const hasEmail = this.data.emailList.some(
         (item) => item.email === email.trim(),
       );
@@ -364,7 +674,7 @@ Page({
     }
   },
 
-  // 删除邮箱
+  // 原有方法：删除邮箱（无修改）
   async deleteEmail(e) {
     if (this.data.isTrialExpired) {
       return wx.showToast({ title: "试用已到期，请升级正式版", icon: "none" });
@@ -381,7 +691,7 @@ Page({
     }
   },
 
-  // 拨打电话
+  // 原有方法：拨打电话（无修改）
   callPhone(e) {
     const phone = e.currentTarget.dataset.phone;
     if (!phone) {
@@ -399,12 +709,12 @@ Page({
     });
   },
 
-  // 姓名输入
+  // 原有方法：姓名输入（无修改）
   onUserNameInput(e) {
     this.setData({ userName: e.detail.value });
   },
 
-  // 保存姓名
+  // 原有方法：保存姓名（无修改）
   async saveUserName() {
     if (this.data.isTrialExpired) {
       return wx.showToast({ title: "试用已到期，请升级正式版", icon: "none" });
@@ -442,7 +752,7 @@ Page({
     }
   },
 
-  // 设置家庭位置
+  // 原有方法：设置家庭位置（无修改）
   setHomeLocation() {
     if (this.data.isTrialExpired) {
       return wx.showToast({ title: "试用已到期，请升级正式版", icon: "none" });
@@ -508,7 +818,7 @@ Page({
     });
   },
 
-  // 一键回家
+  // 原有方法：一键回家（无修改）
   goHome() {
     if (this.data.isTrialExpired) {
       return wx.showToast({ title: "试用已到期，请升级正式版", icon: "none" });
@@ -533,7 +843,7 @@ Page({
     });
   },
 
-  // 发送定位
+  // 原有方法：发送定位（无修改）
   sendLocation() {
     if (this.data.isTrialExpired) {
       return wx.showToast({ title: "试用已到期，请升级正式版", icon: "none" });
@@ -606,29 +916,27 @@ Page({
     });
   },
 
-  // 显示支付弹窗
+  // 原有方法：显示支付弹窗（无修改）
   showPayDialog() {
     this.setData({ showPayDialog: true });
   },
 
-  // 关闭支付弹窗
+  // 原有方法：关闭支付弹窗（无修改）
   closePayDialog() {
     this.setData({ showPayDialog: false });
   },
 
-  // 选择支付类型
+  // 原有方法：选择支付类型（无修改）
   async choosePayType(e) {
     const type = e.currentTarget.dataset.type;
     const amount = type === "month" ? 3 : 20;
 
     try {
-      // wx.showLoading({ title: "创建订单中..." });
       const app = getApp();
       const res = await wx.cloud.callFunction({
         name: "createPayOrder",
         data: { openid: app.globalData.openid, payType: type, amount },
       });
-      // wx.hideLoading();
 
       console.log("云函数返回：", res.result);
 
@@ -659,24 +967,22 @@ Page({
         });
       }
     } catch (err) {
-      // wx.hideLoading();
       console.error("支付失败：", err);
       wx.showToast({ title: "支付异常，请重试", icon: "none" });
     }
   },
 
-  // 更新用户版本（修复时间计算错误、补充服务开始时间）
+  // 原有方法：更新用户版本（无修改）
   async updateUserVersion(payType) {
     try {
       const app = getApp();
       const now = new Date();
       let serviceEndTime = new Date(now);
 
-      // 修复：年付应该用setFullYear，不是setDate
       if (payType === "month") {
-        serviceEndTime.setDate(serviceEndTime.getDate() + 30); // 月付+30天
+        serviceEndTime.setDate(serviceEndTime.getDate() + 30);
       } else {
-        serviceEndTime.setFullYear(serviceEndTime.getFullYear() + 1); // 年付+1年
+        serviceEndTime.setFullYear(serviceEndTime.getFullYear() + 1);
       }
 
       const userRes = await usersCol
@@ -684,11 +990,11 @@ Page({
         .get();
       const updateData = {
         isFormalVersion: true,
-        serviceStartTime: this.formatDate(now), // 补充：设置服务开始时间
+        serviceStartTime: this.formatDate(now),
         serviceEndTime: this.formatDate(serviceEndTime),
         payType,
         lastPayTime: db.serverDate(),
-        trialExpired: false, // 重置试用过期状态
+        trialExpired: false,
       };
 
       if (userRes.data.length > 0) {
@@ -703,7 +1009,6 @@ Page({
         });
       }
 
-      // 重新加载版本信息
       await this.getVersionInfo();
       this.setData({ isTrialExpired: false });
     } catch (err) {

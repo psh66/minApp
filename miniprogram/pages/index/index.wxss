@@ -37,3 +37,44 @@ input:focus {
   border-color: #1890ff;
   outline: none;
 }
+
+/* 天气标签容器 - 整体布局 */
+.weather-tabs {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 90%;
+  margin: 15rpx auto;
+  padding: 10rpx 0;
+  border-radius: 60rpx;
+  background-color: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.05);
+}
+
+/* 单个天气标签 - 默认样式 */
+.weather-tabs view {
+  flex: 1;
+  text-align: center;
+  font-size: 28rpx;
+  color: #666;
+  padding: 15rpx 0;
+  border-radius: 50rpx;
+  transition: all 0.3s ease;
+  /* 禁止文字换行 */
+  white-space: nowrap;
+  /* 点击反馈 */
+  touch-action: manipulation;
+}
+
+/* 选中态样式 - active */
+.weather-tabs view.active {
+  background-color: #007aff; /* 微信蓝，可自行替换 */
+  color: #ffffff;
+  font-weight: 500;
+  box-shadow: 0 2rpx 8rpx rgba(0, 122, 255, 0.3);
+}
+
+/* 可选：点击态效果（增强交互） */
+.weather-tabs view:active {
+  opacity: 0.9;
+}

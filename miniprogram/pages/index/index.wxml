@@ -1,162 +1,197 @@
-<!--pages/index/index.wxml-->
 <view class="container" style="padding: 20rpx; background: linear-gradient(to bottom, #f0f9ff, #ffffff); min-height: 100vh;">
-  <!-- 今日签到 -->
+  <!-- 今日签到（字体大小动态绑定） -->
   <view style="margin-bottom: 25rpx;">
-    <view style="font-size: 32rpx; color: #333; margin-bottom: 10rpx;">今日签到</view>
+    <view style="font-size: {{32 * fontSizeMultiple}}rpx; color: #333; margin-bottom: 10rpx;">今日签到</view>
     <view style="background: white; border-radius: 12rpx; padding: 12rpx; display: flex; align-items: center; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
-      <view style="flex: 1; font-size: 34rpx; color: {{isSigned ? '#07c160' : '#ff4d4f'}}; font-weight: 500;">
+      <view style="flex: 1; font-size: {{34 * fontSizeMultiple}}rpx; color: {{isSigned ? '#07c160' : '#ff4d4f'}}; font-weight: 500;">
         {{isSigned ? '已签到' : '未签到'}}
       </view>
       <button bindtap="handleSign" disabled="{{isSigned || isTrialExpired}}" 
-        style="width: 150rpx; background: {{isSigned || isTrialExpired ? '#ccc' : '#1890ff'}}; color: white; border: none; padding: 8rpx 0; border-radius: 12rpx; font-size: 26rpx; box-shadow: 0 4rpx 8rpx rgba(24, 144, 255, 0.3);">
+        style="width: 150rpx; background: {{isSigned || isTrialExpired ? '#ccc' : '#1890ff'}}; color: white; border: none; padding: 8rpx 0; border-radius: 12rpx; font-size: {{26 * fontSizeMultiple}}rpx; box-shadow: 0 4rpx 8rpx rgba(24, 144, 255, 0.3);">
         {{isSigned ? '已完成' : (isTrialExpired ? '试用到期' : '一键签到')}}
       </button>
     </view>
   </view>
 
-  <!-- 我的版本（显示试用天数） -->
+  <!-- 天气报告模块（含切换+详情） -->
+  <view style="background: white; border-radius: 16rpx; padding: 20rpx; margin-bottom: 25rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
+    <!-- 标题+切换标签 -->
+    <view style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15rpx;">
+      <view style="font-size: {{30 * fontSizeMultiple}}rpx; color: #333; font-weight: 500;">天气报告</view>
+<!-- 天气标签区域 -->
+<view class="weather-tabs">
+  <view 
+    data-index="0" 
+    bindtap="switchWeatherTab"
+    class="{{currentWeatherTab === 0 ? 'active' : ''}}"
+  >今天</view>
+  <view 
+    data-index="1" 
+    bindtap="switchWeatherTab"
+    class="{{currentWeatherTab === 1 ? 'active' : ''}}"
+  >明天</view>
+  <view 
+    data-index="2" 
+    bindtap="switchWeatherTab"
+    class="{{currentWeatherTab === 2 ? 'active' : ''}}"
+  >后天</view>
+</view>
+    </view>
+
+    <!-- 当前选中日期的天气卡片（可点击查看详情） -->
+    <view bindtap="openWeatherDetail" style="background: #f5faff; border-radius: 12rpx; padding: 20rpx; text-align: center; cursor: pointer;">
+      <view style="font-size: {{28 * fontSizeMultiple}}rpx; color: #666; margin-bottom: 15rpx;">{{activeWeatherData.dateText}}</view>
+      <view style="font-size: {{60 * fontSizeMultiple}}rpx; margin-bottom: 15rpx;">{{activeWeatherData.icon}}</view>
+      <view style="font-size: {{32 * fontSizeMultiple}}rpx; color: #333; margin-bottom: 10rpx;">{{activeWeatherData.temp}}</view>
+      <view style="font-size: {{26 * fontSizeMultiple}}rpx; color: #666;">{{activeWeatherData.desc}}</view>
+      <view style="margin-top: 10rpx; font-size: {{20 * fontSizeMultiple}}rpx; color: #999;">点击查看详情 ↑</view>
+    </view>
+  </view>
+
+  <!-- 我的版本（字体大小动态绑定） -->
   <view style="margin-bottom: 25rpx;">
-    <view style="font-size: 32rpx; color: #333; margin-bottom: 10rpx;">我的版本</view>
+    <view style="font-size: {{32 * fontSizeMultiple}}rpx; color: #333; margin-bottom: 10rpx;">我的版本</view>
     <view style="background: white; border-radius: 12rpx; padding: 12rpx; display: flex; align-items: center; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
-      <view style="flex: 1; font-size: 30rpx; color: #333; font-weight: 500;">
+      <view style="flex: 1; font-size: {{30 * fontSizeMultiple}}rpx; color: #333; font-weight: 500;">
         {{isFormalVersion ? '正式版' : '试用版'}}
       </view>
       <button bindtap="showPayDialog"
-        style="width: 150rpx; background: {{isTrialExpired ? '#ff7d00' : (isFormalVersion ? '#1890ff' : '#ff7d00')}}; color: white; border: none; padding: 8rpx 0; border-radius: 12rpx; font-size: 26rpx; box-shadow: 0 4rpx 8rpx {{isTrialExpired ? 'rgba(255, 125, 0, 0.3)' : (isFormalVersion ? 'rgba(24, 144, 255, 0.3)' : 'rgba(255, 125, 0, 0.3)')}};">
+        style="width: 150rpx; background: {{isTrialExpired ? '#ff7d00' : (isFormalVersion ? '#1890ff' : '#ff7d00')}}; color: white; border: none; padding: 8rpx 0; border-radius: 12rpx; font-size: {{26 * fontSizeMultiple}}rpx; box-shadow: 0 4rpx 8rpx {{isTrialExpired ? 'rgba(255, 125, 0, 0.3)' : (isFormalVersion ? 'rgba(24, 144, 255, 0.3)' : 'rgba(255, 125, 0, 0.3)')}};">
         {{isFormalVersion ? '续费' : '升级'}}
       </button>
     </view>
   </view>
 
-  <!-- 我的备注 -->
+  <!-- 我的备注（字体大小动态绑定） -->
   <view style="margin-bottom: 25rpx;">
-    <view style="font-size: 32rpx; color: #333; margin-bottom: 10rpx;">我的备注</view>
+    <view style="font-size: {{32 * fontSizeMultiple}}rpx; color: #333; margin-bottom: 10rpx;">我的备注</view>
     <view style="background: white; border-radius: 12rpx; padding: 12rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
       <view style="display: flex; align-items: center; margin-bottom: 15rpx;">
         <input 
-          style="flex: 1; padding: 8rpx; border: 1px solid #eee; border-radius: 8rpx; font-size: 28rpx; margin-right: 10rpx;"
+          style="flex: 1; padding: 8rpx; border: 1px solid #eee; border-radius: 8rpx; font-size: {{28 * fontSizeMultiple}}rpx; margin-right: 10rpx;"
           placeholder="请输入您的姓名或简称（如：张三/老张）"
           value="{{userName}}"
           bindinput="onUserNameInput"
           disabled="{{isTrialExpired}}"
         />
         <button bindtap="saveUserName" disabled="{{isTrialExpired}}"
-          style="width: 150rpx; background: {{isTrialExpired ? '#ccc' : '#1890ff'}}; color: white; border: none; padding: 8rpx 0; border-radius: 12rpx; font-size: 26rpx; box-shadow: 0 4rpx 8rpx rgba(24, 144, 255, 0.3);">
+          style="width: 150rpx; background: {{isTrialExpired ? '#ccc' : '#1890ff'}}; color: white; border: none; padding: 8rpx 0; border-radius: 12rpx; font-size: {{26 * fontSizeMultiple}}rpx; box-shadow: 0 4rpx 8rpx rgba(24, 144, 255, 0.3);">
           保存
         </button>
       </view>
       <view style="display: flex; align-items: center;">
-        <view style="flex: 1; font-size: 28rpx; color: #666;">
+        <view style="flex: 1; font-size: {{28 * fontSizeMultiple}}rpx; color: #666;">
           {{homeLocation ? '家庭位置已设置' : '未设置家庭位置'}}
         </view>
         <button bindtap="setHomeLocation" disabled="{{isTrialExpired}}"
-          style="width: 150rpx; background: {{isTrialExpired ? '#ccc' : '#07c160'}}; color: white; border: none; padding: 8rpx 0; border-radius: 12rpx; font-size: 26rpx; box-shadow: 0 4rpx 8rpx rgba(7, 193, 96, 0.3);">
+          style="width: 150rpx; background: {{isTrialExpired ? '#ccc' : '#07c160'}}; color: white; border: none; padding: 8rpx 0; border-radius: 12rpx; font-size: {{26 * fontSizeMultiple}}rpx; box-shadow: 0 4rpx 8rpx rgba(7, 193, 96, 0.3);">
           设置位置
         </button>
       </view>
     </view>
   </view>
 
-  <!-- 紧急呼叫 -->
+  <!-- 紧急呼叫（字体大小动态绑定） -->
   <view style="margin-bottom: 25rpx;">
-    <view style="font-size: 32rpx; color: #333; margin-bottom: 10rpx;">紧急呼叫</view>
+    <view style="font-size: {{32 * fontSizeMultiple}}rpx; color: #333; margin-bottom: 10rpx;">紧急呼叫</view>
     <view style="background: white; border-radius: 12rpx; padding: 15rpx; display: flex; gap: 10rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
-      <button bindtap="callPhone" data-phone="120" style="background: white; border: 1px solid #eee; color: #333; padding: 8rpx 15rpx; border-radius: 8rpx; font-size: 26rpx; flex: 1;">120 急救中心</button>
-      <button bindtap="callPhone" data-phone="110" style="background: white; border: 1px solid #eee; color: #333; padding: 8rpx 15rpx; border-radius: 8rpx; font-size: 26rpx; flex: 1;">110 报警电话</button>
-      <button bindtap="callPhone" data-phone="119" style="background: white; border: 1px solid #eee; color: #333; padding: 8rpx 15rpx; border-radius: 8rpx; font-size: 26rpx; flex: 1;">119 火警电话</button>
+      <button bindtap="callPhone" data-phone="120" style="background: white; border: 1px solid #eee; color: #333; padding: 8rpx 15rpx; border-radius: 8rpx; font-size: {{26 * fontSizeMultiple}}rpx; flex: 1;">120 急救中心</button>
+      <button bindtap="callPhone" data-phone="110" style="background: white; border: 1px solid #eee; color: #333; padding: 8rpx 15rpx; border-radius: 8rpx; font-size: {{26 * fontSizeMultiple}}rpx; flex: 1;">110 报警电话</button>
+      <button bindtap="callPhone" data-phone="119" style="background: white; border: 1px solid #eee; color: #333; padding: 8rpx 15rpx; border-radius: 8rpx; font-size: {{26 * fontSizeMultiple}}rpx; flex: 1;">119 火警电话</button>
     </view>
   </view>
 
-  <!-- 紧急工具 -->
+  <!-- 紧急工具（字体大小动态绑定） -->
   <view style="margin-bottom: 25rpx;">
-    <view style="font-size: 32rpx; color: #333; margin-bottom: 10rpx;">紧急工具</view>
+    <view style="font-size: {{32 * fontSizeMultiple}}rpx; color: #333; margin-bottom: 10rpx;">紧急工具</view>
     <view style="background: white; border-radius: 12rpx; padding: 15rpx; display: flex; gap: 10rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
       <button bindtap="goHome" disabled="{{isTrialExpired}}"
-        style="background: {{isTrialExpired ? '#ccc' : '#ff7d00'}}; color: white; border: none; padding: 8rpx 0; border-radius: 12rpx; font-size: 26rpx; flex: 1; box-shadow: 0 4rpx 8rpx rgba(255, 125, 0, 0.3);">
+        style="background: {{isTrialExpired ? '#ccc' : '#ff7d00'}}; color: white; border: none; padding: 8rpx 0; border-radius: 12rpx; font-size: {{26 * fontSizeMultiple}}rpx; flex: 1; box-shadow: 0 4rpx 8rpx rgba(255, 125, 0, 0.3);">
         一键回家
       </button>
       <button bindtap="sendLocation" disabled="{{isTrialExpired}}"
-        style="background: {{isTrialExpired ? '#ccc' : '#ff7d00'}}; color: white; border: none; padding: 8rpx 0; border-radius: 12rpx; font-size: 26rpx; flex: 1; box-shadow: 0 4rpx 8rpx rgba(255, 125, 0, 0.3);">
+        style="background: {{isTrialExpired ? '#ccc' : '#ff7d00'}}; color: white; border: none; padding: 8rpx 0; border-radius: 12rpx; font-size: {{26 * fontSizeMultiple}}rpx; flex: 1; box-shadow: 0 4rpx 8rpx rgba(255, 125, 0, 0.3);">
         一键发送定位
       </button>
     </view>
   </view>
 
-  <!-- 我的联系人 -->
+  <!-- 我的联系人（字体大小动态绑定） -->
   <view style="margin-bottom: 25rpx;">
-    <view style="font-size: 32rpx; color: #333; margin-bottom: 10rpx;">我的联系人</view>
+    <view style="font-size: {{32 * fontSizeMultiple}}rpx; color: #333; margin-bottom: 10rpx;">我的联系人</view>
     <view style="background: white; border-radius: 16rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
       <view wx:for="{{contactsList}}" wx:key="_id" style="padding: 15rpx; border-bottom: 1px solid #f5f5f5; display: flex; justify-content: space-between; align-items: center;">
-        <view style="font-size: 30rpx; color: #333; font-weight: 500;">{{item.name}}</view>
+        <view style="font-size: {{30 * fontSizeMultiple}}rpx; color: #333; font-weight: 500;">{{item.name}}</view>
         <view style="display: flex; gap: 10rpx; width: 60%;">
-          <button bindtap="callPhone" data-phone="{{item.phone}}" style="background: #1890ff; color: white; border: none; padding: 8rpx 0; border-radius: 12rpx; font-size: 26rpx; flex: 1; box-shadow: 0 4rpx 8rpx rgba(24, 144, 255, 0.3);">打电话</button>
+          <button bindtap="callPhone" data-phone="{{item.phone}}" style="background: #1890ff; color: white; border: none; padding: 8rpx 0; border-radius: 12rpx; font-size: {{26 * fontSizeMultiple}}rpx; flex: 1; box-shadow: 0 4rpx 8rpx rgba(24, 144, 255, 0.3);">打电话</button>
           <button bindtap="deleteContact" data-id="{{item._id}}" disabled="{{isTrialExpired}}"
-            style="background: {{isTrialExpired ? '#ccc' : '#ff4d4f'}}; color: white; border: none; padding: 8rpx 0; border-radius: 12rpx; font-size: 26rpx; flex: 1; box-shadow: 0 4rpx 8rpx rgba(255, 77, 79, 0.3);">
+            style="background: {{isTrialExpired ? '#ccc' : '#ff4d4f'}}; color: white; border: none; padding: 8rpx 0; border-radius: 12rpx; font-size: {{26 * fontSizeMultiple}}rpx; flex: 1; box-shadow: 0 4rpx 8rpx rgba(255, 77, 79, 0.3);">
             删除
           </button>
         </view>
       </view>
       <button bindtap="showAddDialog" disabled="{{isTrialExpired}}"
-        style="width: 100%; background: {{isTrialExpired ? '#ccc' : 'linear-gradient(to right, #07c160, #06b358)'}}; color: white; border: none; padding: 15rpx 0; border-radius: 0 0 16rpx 16rpx; font-size: 30rpx; box-shadow: 0 4rpx 8rpx rgba(7, 193, 96, 0.3);">
+        style="width: 100%; background: {{isTrialExpired ? '#ccc' : 'linear-gradient(to right, #07c160, #06b358)'}}; color: white; border: none; padding: 15rpx 0; border-radius: 0 0 16rpx 16rpx; font-size: {{30 * fontSizeMultiple}}rpx; box-shadow: 0 4rpx 8rpx rgba(7, 193, 96, 0.3);">
         {{isTrialExpired ? '试用到期' : '添加联系人'}}
       </button>
     </view>
   </view>
 
-  <!-- 提醒邮箱 -->
+  <!-- 提醒邮箱（字体大小动态绑定） -->
   <view>
-    <view style="font-size: 32rpx; color: #333; margin-bottom: 10rpx;">提醒邮箱</view>
+    <view style="font-size: {{32 * fontSizeMultiple}}rpx; color: #333; margin-bottom: 10rpx;">提醒邮箱</view>
     <view style="background: white; border-radius: 16rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05); overflow: hidden;">
       <view wx:for="{{emailList}}" wx:key="_id" style="padding: 15rpx; border-bottom: 1px solid #f5f5f5; display: flex; justify-content: space-between; align-items: center;">
-        <view style="font-size: 30rpx; color: #333; font-weight: 500;">{{item.email}}</view>
+        <view style="font-size: {{30 * fontSizeMultiple}}rpx; color: #333; font-weight: 500;">{{item.email}}</view>
         <view style="width: 35%;">
           <button bindtap="deleteEmail" data-id="{{item._id}}" disabled="{{isTrialExpired}}"
-            style="background: {{isTrialExpired ? '#ccc' : '#ff4d4f'}}; color: white; border: none; padding: 8rpx 0; border-radius: 12rpx; font-size: 26rpx; width: 100%; box-shadow: 0 4rpx 8rpx rgba(255, 77, 79, 0.3);">
+            style="background: {{isTrialExpired ? '#ccc' : '#ff4d4f'}}; color: white; border: none; padding: 8rpx 0; border-radius: 12rpx; font-size: {{26 * fontSizeMultiple}}rpx; width: 100%; box-shadow: 0 4rpx 8rpx rgba(255, 77, 79, 0.3);">
             删除
           </button>
         </view>
       </view>
       <button bindtap="showEmailDialog" disabled="{{isTrialExpired}}"
-        style="width: 100%; background: {{isTrialExpired ? '#ccc' : 'linear-gradient(to right, #07c160, #06b358)'}}; color: white; border: none; padding: 15rpx 0; font-size: 30rpx; box-shadow: 0 4rpx 8rpx rgba(7, 193, 96, 0.3);">
+        style="width: 100%; background: {{isTrialExpired ? '#ccc' : 'linear-gradient(to right, #07c160, #06b358)'}}; color: white; border: none; padding: 15rpx 0; font-size: {{30 * fontSizeMultiple}}rpx; box-shadow: 0 4rpx 8rpx rgba(7, 193, 96, 0.3);">
         {{isTrialExpired ? '试用到期' : '添加提醒邮箱'}}
       </button>
     </view>
   </view>
 
-  <!-- 添加邮箱弹窗 -->
+  <!-- 添加邮箱弹窗（字体大小动态绑定） -->
   <view wx:if="{{showEmailDialog}}" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999; display: flex; align-items: center; justify-content: center;">
     <view style="width: 80%; background: white; border-radius: 16rpx; padding: 30rpx; box-shadow: 0 6rpx 16rpx rgba(0,0,0,0.1);">
-      <view style="font-size: 34rpx; font-weight: bold; text-align: center; margin-bottom: 30rpx; color: #333;">添加提醒邮箱</view>
+      <view style="font-size: {{34 * fontSizeMultiple}}rpx; font-weight: bold; text-align: center; margin-bottom: 30rpx; color: #333;">添加提醒邮箱</view>
       <view style="display: flex; align-items: center; margin-bottom: 30rpx;">
-        <view style="width: 100rpx; font-size: 32rpx; text-align: right; color: #333;">邮箱</view>
+        <view style="width: 100rpx; font-size: {{32 * fontSizeMultiple}}rpx; text-align: right; color: #333;">邮箱</view>
         <van-field
           placeholder="用于连续未签到时接收提醒邮件"
           value="{{email}}"
           bind:change="emailChange"
           type="email"
-          custom-style="font-size: 32rpx; flex: 1; border: 1px solid #eee; border-radius: 6rpx; padding: 12rpx; margin-left: 10rpx;"
-          placeholder-style="text-align: left; color: #999;"
+          custom-style="font-size: {{32 * fontSizeMultiple}}rpx; flex: 1; border: 1px solid #eee; border-radius: 6rpx; padding: 12rpx; margin-left: 10rpx;"
+          placeholder-style="text-align: left; color: #999; font-size: {{30 * fontSizeMultiple}}rpx;"
         />
       </view>
       <view style="display: flex; gap: 20rpx;">
-        <button bindtap="bindEmail" style="flex: 1; background: #07c160; color: white; padding: 15rpx 0; border-radius: 8rpx; font-size: 32rpx; border: none;">保存</button>
-        <button bindtap="cancelBindEmail" style="flex: 1; background: #f5f5f5; color: #333; padding: 15rpx 0; border-radius: 8rpx; font-size: 32rpx; border: none;">取消</button>
+        <button bindtap="bindEmail" style="flex: 1; background: #07c160; color: white; border: none; padding: 15rpx 0; border-radius: 8rpx; font-size: {{32 * fontSizeMultiple}}rpx; border: none;">保存</button>
+        <button bindtap="cancelBindEmail" style="flex: 1; background: #f5f5f5; color: #333; padding: 15rpx 0; border-radius: 8rpx; font-size: {{32 * fontSizeMultiple}}rpx; border: none;">取消</button>
       </view>
     </view>
   </view>
 
-  <!-- 添加联系人弹窗 -->
+  <!-- 添加联系人弹窗（字体大小动态绑定） -->
   <view wx:if="{{showAddDialog}}" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999; display: flex; align-items: center; justify-content: center;">
     <view style="width: 80%; background: white; border-radius: 16rpx; padding: 30rpx; box-shadow: 0 6rpx 16rpx rgba(0,0,0,0.1);">
-      <view style="font-size: 34rpx; font-weight: bold; text-align: center; margin-bottom: 30rpx; color: #333;">添加紧急联系人</view>
+      <view style="font-size: {{34 * fontSizeMultiple}}rpx; font-weight: bold; text-align: center; margin-bottom: 30rpx; color: #333;">添加紧急联系人</view>
       <van-field
         label="联系人姓名"
         placeholder="请输入姓名"
         value="{{contactForm.name}}"
         bind:change="onFormChange"
         data-key="name"
-        custom-style="font-size: 32rpx; margin-bottom: 20rpx; border: 1px solid #eee; border-radius: 6rpx; padding: 12rpx;"
-        label-style="width: 150rpx; color: #333;"
+        custom-style="font-size: {{32 * fontSizeMultiple}}rpx; margin-bottom: 20rpx; border: 1px solid #eee; border-radius: 6rpx; padding: 12rpx;"
+        label-style="width: 150rpx; color: #333; font-size: {{32 * fontSizeMultiple}}rpx;"
+        placeholder-style="font-size: {{30 * fontSizeMultiple}}rpx; color: #999;"
       />
       <van-field
         label="手机号"
@@ -166,41 +201,101 @@
         data-key="phone"
         type="number"
         maxlength="11"
-        custom-style="font-size: 32rpx; margin-bottom: 30rpx; border: 1px solid #eee; border-radius: 6rpx; padding: 12rpx;"
-        label-style="width: 150rpx; color: #333;"
+        custom-style="font-size: {{32 * fontSizeMultiple}}rpx; margin-bottom: 30rpx; border: 1px solid #eee; border-radius: 6rpx; padding: 12rpx;"
+        label-style="width: 150rpx; color: #333; font-size: {{32 * fontSizeMultiple}}rpx;"
+        placeholder-style="font-size: {{30 * fontSizeMultiple}}rpx; color: #999;"
       />
       <view style="display: flex; gap: 20rpx;">
-        <button bindtap="onConfirmAddContact" style="flex: 1; background: #07c160; color: white; padding: 15rpx 0; border-radius: 8rpx; font-size: 32rpx; border: none;">保存</button>
-        <button bindtap="onCancelAddContact" style="flex: 1; background: #f5f5f5; color: #333; padding: 15rpx 0; border-radius: 8rpx; font-size: 32rpx; border: none;">取消</button>
+        <button bindtap="onConfirmAddContact" style="flex: 1; background: #07c160; color: white; border: none; padding: 15rpx 0; border-radius: 8rpx; font-size: {{32 * fontSizeMultiple}}rpx; border: none;">保存</button>
+        <button bindtap="onCancelAddContact" style="flex: 1; background: #f5f5f5; color: #333; padding: 15rpx 0; border-radius: 8rpx; font-size: {{32 * fontSizeMultiple}}rpx; border: none;">取消</button>
       </view>
     </view>
   </view>
 
-  <!-- 支付弹窗 -->
+  <!-- 支付弹窗（字体大小动态绑定） -->
   <view wx:if="{{showPayDialog}}" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999; display: flex; align-items: center; justify-content: center;">
     <view style="width: 80%; background: white; border-radius: 16rpx; padding: 30rpx; box-shadow: 0 6rpx 16rpx rgba(0,0,0,0.1);">
-      <view style="font-size: 34rpx; font-weight: bold; text-align: center; margin-bottom: 30rpx; color: #333;">{{isFormalVersion ? '续费会员' : '升级正式版'}}</view>
-      <view style="font-size: 26rpx; color: #666; text-align: center; margin-bottom: 20rpx;">
+      <view style="font-size: {{34 * fontSizeMultiple}}rpx; font-weight: bold; text-align: center; margin-bottom: 30rpx; color: #333;">{{isFormalVersion ? '续费会员' : '升级正式版'}}</view>
+      <view style="font-size: {{26 * fontSizeMultiple}}rpx; color: #666; text-align: center; margin-bottom: 20rpx;">
         {{isFormalVersion ? '选择续费时长' : '试用到期后，升级正式版即可继续使用全部功能'}}
       </view>
       <view style="display: flex; gap: 20rpx; margin-bottom: 30rpx;">
-        <button bindtap="choosePayType" data-type="month" style="flex: 1; background: #f5f5f5; color: #333; padding: 15rpx 0; border-radius: 8rpx; font-size: 28rpx; border: none;">月付<br/>3元/月</button>
-        <button bindtap="choosePayType" data-type="year" style="flex: 1; background: #ff7d00; color: white; padding: 15rpx 0; border-radius: 8rpx; font-size: 28rpx; border: none;">年付<br/>20元/年</button>
+        <button bindtap="choosePayType" data-type="month" style="flex: 1; background: #f5f5f5; color: #333; padding: 15rpx 0; border-radius: 8rpx; font-size: {{28 * fontSizeMultiple}}rpx; border: none;">月付<br/>3元/月</button>
+        <button bindtap="choosePayType" data-type="year" style="flex: 1; background: #ff7d00; color: white; padding: 15rpx 0; border-radius: 8rpx; font-size: {{28 * fontSizeMultiple}}rpx; border: none;">年付<br/>20元/年</button>
       </view>
-      <button bindtap="closePayDialog" style="width: 100%; background: #f5f5f5; color: #333; padding: 15rpx 0; border-radius: 8rpx; font-size: 28rpx; border: none;">取消</button>
+      <button bindtap="closePayDialog" style="width: 100%; background: #f5f5f5; color: #333; padding: 15rpx 0; border-radius: 8rpx; font-size: {{28 * fontSizeMultiple}}rpx; border: none;">取消</button>
     </view>
   </view>
 
-  <!-- 悬浮客服按钮 -->
+  <!-- 悬浮客服按钮（字体大小动态绑定） -->
   <view style="position: fixed; right: 30rpx; bottom: 30rpx; z-index: 998;">
     <button 
       open-type="contact" 
       session-from="咱爸咱妈平安签-悬浮客服按钮"
-      style="width: 100rpx; height: 100rpx; border-radius: 50%; background: linear-gradient(135deg, #07c160, #06b358); color: white; border: none; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 24rpx; box-shadow: 0 6rpx 16rpx rgba(7, 193, 96, 0.5); padding: 0; transition: all 0.2s ease;"
+      style="width: 100rpx; height: 100rpx; border-radius: 50%; background: linear-gradient(135deg, #07c160, #06b358); color: white; border: none; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: {{24 * fontSizeMultiple}}rpx; box-shadow: 0 6rpx 16rpx rgba(7, 193, 96, 0.5); padding: 0; transition: all 0.2s ease;"
       hover-class="hover-class"
     >
-      <text style="font-size: 40rpx; margin-bottom: 4rpx;">💬</text>
-      <text style="display: block; font-size: 20rpx;">客服</text>
+      <text style="font-size: {{40 * fontSizeMultiple}}rpx; margin-bottom: 4rpx;">💬</text>
+      <text style="display: block; font-size: {{20 * fontSizeMultiple}}rpx;">客服</text>
     </button>
+  </view>
+
+  <!-- 天气详情弹窗 -->
+  <view wx:if="{{showWeatherDetail}}" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center;">
+    <view style="background: white; border-radius: 16rpx; padding: 30rpx; width: 85%; max-height: 70vh; overflow-y: auto;">
+      <view style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20rpx;">
+        <view style="font-size: {{28 * fontSizeMultiple}}rpx; color: #333; font-weight: 500;">{{activeWeatherData.dateText}}天气详情</view>
+        <view bindtap="closeWeatherDetail" style="font-size: {{32 * fontSizeMultiple}}rpx; cursor: pointer;">✕</view>
+      </view>
+      <view style="text-align: center; margin-bottom: 25rpx;">
+        <view style="font-size: {{60 * fontSizeMultiple}}rpx; margin-bottom: 10rpx;">{{activeWeatherData.icon}}</view>
+        <view style="font-size: {{32 * fontSizeMultiple}}rpx; color: #333;">{{activeWeatherData.temp}}</view>
+        <view style="font-size: {{26 * fontSizeMultiple}}rpx; color: #666;">{{activeWeatherData.desc}}</view>
+      </view>
+      <view style="display: flex; flex-wrap: wrap; gap: 15rpx;">
+        <view style="flex: 1; min-width: 45%; background: #f5f5f5; border-radius: 8rpx; padding: 15rpx; text-align: center;">
+          <view style="font-size: {{22 * fontSizeMultiple}}rpx; color: #999; margin-bottom: 5rpx;">风向</view>
+          <view style="font-size: {{26 * fontSizeMultiple}}rpx; color: #333;">{{activeWeatherData.windDir}}</view>
+        </view>
+        <view style="flex: 1; min-width: 45%; background: #f5f5f5; border-radius: 8rpx; padding: 15rpx; text-align: center;">
+          <view style="font-size: {{22 * fontSizeMultiple}}rpx; color: #999; margin-bottom: 5rpx;">风力</view>
+          <view style="font-size: {{26 * fontSizeMultiple}}rpx; color: #333;">{{activeWeatherData.windScale}}</view>
+        </view>
+        <view style="flex: 1; min-width: 45%; background: #f5f5f5; border-radius: 8rpx; padding: 15rpx; text-align: center;">
+          <view style="font-size: {{22 * fontSizeMultiple}}rpx; color: #999; margin-bottom: 5rpx;">湿度</view>
+          <view style="font-size: {{26 * fontSizeMultiple}}rpx; color: #333;">{{activeWeatherData.humidity}}</view>
+        </view>
+        <view style="flex: 1; min-width: 45%; background: #f5f5f5; border-radius: 8rpx; padding: 15rpx; text-align: center;">
+          <view style="font-size: {{22 * fontSizeMultiple}}rpx; color: #999; margin-bottom: 5rpx;">紫外线</view>
+          <view style="font-size: {{26 * fontSizeMultiple}}rpx; color: #333;">{{activeWeatherData.uvIndex}}</view>
+        </view>
+        <view style="flex: 1; min-width: 45%; background: #f5f5f5; border-radius: 8rpx; padding: 15rpx; text-align: center;">
+          <view style="font-size: {{22 * fontSizeMultiple}}rpx; color: #999; margin-bottom: 5rpx;">日出</view>
+          <view style="font-size: {{26 * fontSizeMultiple}}rpx; color: #333;">{{activeWeatherData.sunrise}}</view>
+        </view>
+        <view style="flex: 1; min-width: 45%; background: #f5f5f5; border-radius: 8rpx; padding: 15rpx; text-align: center;">
+          <view style="font-size: {{22 * fontSizeMultiple}}rpx; color: #999; margin-bottom: 5rpx;">日落</view>
+          <view style="font-size: {{26 * fontSizeMultiple}}rpx; color: #333;">{{activeWeatherData.sunset}}</view>
+        </view>
+        <view style="flex: 1; min-width: 45%; background: #f5f5f5; border-radius: 8rpx; padding: 15rpx; text-align: center;">
+          <view style="font-size: {{22 * fontSizeMultiple}}rpx; color: #999; margin-bottom: 5rpx;">降水</view>
+          <view style="font-size: {{26 * fontSizeMultiple}}rpx; color: #333;">{{activeWeatherData.precip}}</view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 定位授权引导弹窗 -->
+  <view wx:if="{{showLocationModal}}" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center;">
+    <view style="background: white; border-radius: 16rpx; padding: 30rpx; width: 80%;">
+      <view style="font-size: {{28 * fontSizeMultiple}}rpx; color: #333; font-weight: 500; margin-bottom: 20rpx; text-align: center;">需要定位权限</view>
+      <view style="font-size: {{24 * fontSizeMultiple}}rpx; color: #666; margin-bottom: 30rpx; line-height: 1.5;">
+        为了获取准确的天气信息，请允许小程序访问你的地理位置权限
+      </view>
+      <view style="display: flex; gap: 20rpx;">
+        <button bindtap="cancelLocation" style="flex: 1; background: #f5f5f5; color: #333; border: none; padding: 10rpx; border-radius: 8rpx; font-size: {{24 * fontSizeMultiple}}rpx;">取消</button>
+        <button bindtap="goToSetting" style="flex: 1; background: #1890ff; color: white; border: none; padding: 10rpx; border-radius: 8rpx; font-size: {{24 * fontSizeMultiple}}rpx;">前往设置</button>
+      </view>
+    </view>
   </view>
 </view>
