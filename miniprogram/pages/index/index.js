@@ -293,7 +293,6 @@ Page({
   },
 
   // 切换天气标签（今天/明天/后天）
-  // 切换天气标签（今天/明天/后天）
   switchWeatherTab(e) {
     // 修复：确保从currentTarget.dataset中正确获取index（转成数字类型）
     const tabIndex = Number(e.currentTarget.dataset.index);
@@ -368,9 +367,12 @@ Page({
     }
   },
 
-  // 新增：页面显示时重新读取关怀模式
-  onShow() {
+  // 修复：页面显示时重新加载所有核心数据（关键修改）
+  async onShow() {
     this.loadCareModeSetting();
+    // 新增：重新加载版本信息+检查到期状态，确保支付后数据刷新
+    await this.getVersionInfo();
+    this.checkTrialExpired();
   },
 
   // 原有方法：版本信息（无修改）
@@ -934,13 +936,14 @@ Page({
     const amount = type === "month" ? 3 : 20;
 
     try {
+      wx.showLoading({ title: "创建订单中..." });
       const app = getApp();
       const res = await wx.cloud.callFunction({
         name: "createPayOrder",
         data: { openid: app.globalData.openid, payType: type, amount },
       });
       console.log("云函数返回：", res.result);
-
+      wx.hideLoading();
       if (res.result?.success) {
         const payParams = res.result.payParams;
         wx.requestPayment({
@@ -953,6 +956,10 @@ Page({
               : "升级成功，已开通正式版";
             wx.showToast({ title: toastTitle });
             this.closePayDialog();
+            // 新增：支付成功后强制刷新页面所有核心数据
+            await this.getVersionInfo();
+            this.checkTrialExpired();
+            this.setData({ isTrialExpired: false }); // 强制重置到期状态
           },
           fail: (payErr) => {
             console.error("支付请求失败：", payErr);
@@ -972,13 +979,13 @@ Page({
         });
       }
     } catch (err) {
-      // wx.hideLoading();
+      wx.hideLoading();
       console.error("支付失败：", err);
       wx.showToast({ title: "支付异常，请重试", icon: "none" });
     }
   },
 
-  // 原有方法：更新用户版本（无修改）
+  // 修复：更新用户版本（新增强制刷新逻辑）
   async updateUserVersion(payType) {
     try {
       const app = getApp();
@@ -1014,6 +1021,7 @@ Page({
         payType,
         lastPayTime: db.serverDate(),
         trialExpired: false,
+        isTrialExpired: false, // 新增：写入数据库时同步重置到期字段
       };
 
       if (userRes.data.length > 0) {
@@ -1028,8 +1036,13 @@ Page({
         });
       }
 
+      // 新增：更新后立即刷新所有数据
       await this.getVersionInfo();
-      this.setData({ isTrialExpired: false });
+      this.checkTrialExpired();
+      this.setData({
+        isTrialExpired: false,
+        isFormalVersion: true, // 强制设置为正式版
+      });
     } catch (err) {
       console.error("更新版本失败：", err);
       wx.showToast({ title: "版本更新失败，请联系客服", icon: "none" });

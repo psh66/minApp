@@ -219,13 +219,13 @@ Page({
     const amount = type === "month" ? 3 : 20;
 
     try {
-      // wx.showLoading({ title: "创建订单中..." });
+      wx.showLoading({ title: "创建订单中..." });
       const app = getApp();
       const res = await wx.cloud.callFunction({
         name: "createPayOrder",
         data: { openid: app.globalData.openid, payType: type, amount },
       });
-      // wx.hideLoading();
+      wx.hideLoading();
 
       if (res.result?.success) {
         const payParams = res.result.payParams;
@@ -239,6 +239,8 @@ Page({
               : "升级成功，已开通正式版";
             wx.showToast({ title: toastTitle });
             this.closePayDialog();
+            // 新增：支付成功后立即刷新数据
+            this.loadAllUserData();
           },
           fail: (payErr) => {
             console.error("支付请求失败：", payErr);
@@ -258,7 +260,7 @@ Page({
         });
       }
     } catch (err) {
-      // wx.hideLoading();
+      wx.hideLoading();
       console.error("支付失败：", err);
       wx.showToast({ title: "支付异常，请重试", icon: "none" });
     }
@@ -345,6 +347,7 @@ Page({
   },
 
   onShow() {
+    this.loadAllUserData();
     this.loadCareModeSetting();
   },
 });
