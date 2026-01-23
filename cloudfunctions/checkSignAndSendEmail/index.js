@@ -77,24 +77,38 @@ exports.main = async (event, context) => {
       const userData = userRes.data.length > 0 ? userRes.data[0] : {};
       console.log("【用户信息】✅ 查询到用户数据：", JSON.stringify(userData));
 
-      // 关键判断1：未设置服务到期时间 → 跳过（所有用户均需设置）
-      if (!userData.serviceEndTime) {
-        console.log("【服务状态】🚫 未设置serviceEndTime，跳过发邮件");
+      // ========== 修复：强化服务到期判断（核心改动） ==========
+      // 新增：兜底判断 - 只要是试用到期/服务到期，直接跳过
+      let isExpired = false;
+      // 判断1：有serviceEndTime且解析有效
+      if (userData.serviceEndTime) {
+        const serviceEndTime = new Date(userData.serviceEndTime);
+        // 校验日期是否有效
+        if (!isNaN(serviceEndTime.getTime())) {
+          isExpired = serviceEndTime < now;
+        } else {
+          console.log("【服务状态】🚫 serviceEndTime格式无效，判定为到期");
+          isExpired = true; // 格式无效直接判定为到期
+        }
+      }
+      // 判断2：有isTrialExpired字段且为true（前端同步的到期标识）
+      else if (userData.isTrialExpired === true) {
+        console.log("【服务状态】🚫 isTrialExpired为true，判定为到期");
+        isExpired = true;
+      }
+      // 判断3：无服务到期时间，直接判定为到期
+      else {
+        console.log("【服务状态】🚫 无serviceEndTime，判定为到期");
+        isExpired = true;
+      }
+
+      // 最终判定：到期则跳过
+      console.log("【服务状态】最终到期判定：", isExpired ? "是" : "否");
+      if (isExpired) {
+        console.log("【服务状态】🚫 服务到期，跳过发邮件");
         continue;
       }
-      // 服务已到期 → 跳过
-      const serviceEndTime = new Date(userData.serviceEndTime);
-      const isServiceExpired = serviceEndTime < now;
-      console.log("【服务状态】当前时间：", now.toLocaleString());
-      console.log(
-        "【服务状态】用户服务到期时间：",
-        serviceEndTime.toLocaleString(),
-      );
-      console.log("【服务状态】服务是否到期：", isServiceExpired ? "是" : "否");
-      if (isServiceExpired) {
-        console.log("【服务状态】🚫 服务已到期，跳过发邮件");
-        continue;
-      }
+      // ========== 修复结束 ==========
 
       // 关键判断2：提醒开关关闭 → 跳过（无字段视为开启）
       const enableRemind = userData.enableRemind ?? true;

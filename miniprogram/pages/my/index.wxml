@@ -4,8 +4,8 @@
   <view style="background: white; border-radius: 16rpx; padding: 25rpx; margin-bottom: 25rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
     <view style="display: flex; align-items: center; margin-bottom: 20rpx;">
       <view style="width: 100rpx; height: 100rpx; border-radius: 50%; background: linear-gradient(135deg, #1890ff, #07c160); display: flex; align-items: center; justify-content: center; margin-right: 20rpx;">
-        <!-- 修复：头像首字符取值逻辑 -->
-        <text style="font-size: {{40 * fontSizeMultiple}}rpx; color: white; font-weight: bold;">{{userInfo.name ? userInfo.name.charAt(0) : '用'}}</text>
+        <!-- 修复：头像首字取值 -->
+        <text style="font-size: {{40 * fontSizeMultiple}}rpx; color: white; font-weight: bold;">{{(userInfo.name && userInfo.name.charAt(0)) || '福'}}</text>
       </view>
       <view>
         <view style="font-size: {{34 * fontSizeMultiple}}rpx; color: #333; font-weight: 500;">{{userInfo.name || '未设置昵称'}}</view>
@@ -36,14 +36,12 @@
     </view>
   </view>
 
-  <!-- 关怀模式（修复下拉框不显示问题+优化视觉反馈） -->
+  <!-- 关怀模式 -->
   <view style="background: white; border-radius: 16rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05); margin-bottom: 25rpx;">
-    <!-- 开关行 -->
     <view style="padding: 20rpx; display: flex; justify-content: space-between; align-items: center;">
       <view style="font-size: {{30 * fontSizeMultiple}}rpx; color: #333;">关怀模式</view>
       <switch checked="{{careMode}}" bindchange="onCareModeSwitchChange" style="transform: scale(0.9);"></switch>
     </view>
-    <!-- 下拉框（开启后显示，优化视觉反馈） -->
     <view wx:if="{{careMode}}" style="padding: 15rpx 20rpx; border-top: 1px solid #f5f5f5;">
       <view style="font-size: {{26 * fontSizeMultiple}}rpx; color: #666; margin-bottom: 10rpx;">
         字体大小：{{Math.round(fontSizeMultiple * 100)}}%
@@ -87,20 +85,14 @@
         {{isFormalVersion ? '选择续费时长' : '试用到期后，升级正式版即可继续使用全部功能'}}
       </view>
       <view style="display: flex; gap: 20rpx; margin-bottom: 30rpx;">
-        <button bindtap="choosePayType" data-type="month" style="flex: 1; background: #f5f5f5; color: #333; padding: 15rpx 0; border-radius: 8rpx; font-size: {{28 * fontSizeMultiple}}rpx; border: none; text-align: center;">
-          月付
-          <text style="font-size: {{24 * fontSizeMultiple}}rpx; display: block;">3元/月</text>
-        </button>
-        <button bindtap="choosePayType" data-type="year" style="flex: 1; background: #ff7d00; color: white; padding: 15rpx 0; border-radius: 8rpx; font-size: {{28 * fontSizeMultiple}}rpx; border: none; text-align: center;">
-          年付
-          <text style="font-size: {{24 * fontSizeMultiple}}rpx; display: block;">20元/年</text>
-        </button>
+        <button bindtap="choosePayType" data-type="month" style="flex: 1; background: #f5f5f5; color: #333; padding: 15rpx 0; border-radius: 8rpx; font-size: {{28 * fontSizeMultiple}}rpx; border: none;">月付<br/>3元/月</button>
+        <button bindtap="choosePayType" data-type="year" style="flex: 1; background: #ff7d00; color: white; padding: 15rpx 0; border-radius: 8rpx; font-size: {{28 * fontSizeMultiple}}rpx; border: none;">年付<br/>20元/年</button>
       </view>
       <button bindtap="closePayDialog" style="width: 100%; background: #f5f5f5; color: #333; padding: 15rpx 0; border-radius: 8rpx; font-size: {{28 * fontSizeMultiple}}rpx; border: none;">取消</button>
     </view>
   </view>
 
-  <!-- 关于弹窗（核心修复：错误的<br标签 + 拼写错误showAtDialog） -->
+  <!-- 关于弹窗 -->
   <view wx:if="{{showAboutDialog}}" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999; display: flex; align-items: center; justify-content: center;">
     <view style="width: 80%; background: white; border-radius: 16rpx; padding: 30rpx; box-shadow: 0 6rpx 16rpx rgba(0,0,0,0.1);">
       <view style="font-size: {{34 * fontSizeMultiple}}rpx; font-weight: bold; text-align: center; margin-bottom: 20rpx; color: #333;">关于「咱爸咱妈平安签」</view>

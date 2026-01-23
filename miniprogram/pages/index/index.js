@@ -82,12 +82,14 @@ Page({
     return {
       title: "咱爸咱妈平安签，守护家人安全",
       path: "/pages/index/index",
+      imageUrl: "../../images/001.jpg",
     };
   },
 
   onShareTimeline() {
     return {
       title: "咱爸咱妈平安签，守护家人安全",
+      imageUrl: "../../images/001.jpg",
     };
   },
 
@@ -937,7 +939,6 @@ Page({
         name: "createPayOrder",
         data: { openid: app.globalData.openid, payType: type, amount },
       });
-
       console.log("云函数返回：", res.result);
 
       if (res.result?.success) {
@@ -946,7 +947,11 @@ Page({
           ...payParams,
           success: async () => {
             await this.updateUserVersion(type);
-            wx.showToast({ title: "支付成功，已升级为正式版" });
+            // 修复：区分升级/续费提示
+            const toastTitle = this.data.isFormalVersion
+              ? "续费成功，服务已延长"
+              : "升级成功，已开通正式版";
+            wx.showToast({ title: toastTitle });
             this.closePayDialog();
           },
           fail: (payErr) => {
@@ -967,6 +972,7 @@ Page({
         });
       }
     } catch (err) {
+      // wx.hideLoading();
       console.error("支付失败：", err);
       wx.showToast({ title: "支付异常，请重试", icon: "none" });
     }
@@ -977,17 +983,30 @@ Page({
     try {
       const app = getApp();
       const now = new Date();
-      let serviceEndTime = new Date(now);
+      const userRes = await usersCol
+        .where({ _openid: app.globalData.openid })
+        .get();
 
+      let currentServiceEnd;
+      if (userRes.data.length > 0) {
+        // 有用户记录时，判断试用是否过期
+        const userData = userRes.data[0];
+        const trialEndTime = new Date(userData.serviceEndTime);
+        // 未过期：用原结束时间；已过期：用当前时间
+        currentServiceEnd = this.data.isTrialExpired ? now : trialEndTime;
+      } else {
+        // 无用户记录，用当前时间
+        currentServiceEnd = now;
+      }
+
+      // 计算新的结束时间
+      let serviceEndTime = new Date(currentServiceEnd);
       if (payType === "month") {
         serviceEndTime.setDate(serviceEndTime.getDate() + 30);
       } else {
         serviceEndTime.setFullYear(serviceEndTime.getFullYear() + 1);
       }
 
-      const userRes = await usersCol
-        .where({ _openid: app.globalData.openid })
-        .get();
       const updateData = {
         isFormalVersion: true,
         serviceStartTime: this.formatDate(now),

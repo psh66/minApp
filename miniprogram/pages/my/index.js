@@ -10,17 +10,16 @@ Page({
     serviceStartTime: "",
     serviceEndTime: "",
     showPayDialog: false,
-    showAtDialog: false,
-    // 用户核心信息（确保和数据库字段一致）
+    showAboutDialog: false, // 修复：变量名统一
+    // 用户核心信息
     userInfo: {
-      name: "", // 用户设置的姓名
-      homeLocation: null, // 用户设置的家庭位置
-      enableRemind: true, // 签到提醒开关
+      name: "",
+      homeLocation: null,
+      enableRemind: true,
     },
-    // 新增：关怀模式相关字段
-    careMode: false, // 关怀模式开关，默认关闭
-    fontSizeMultiple: 1.0, // 字体倍数，默认1.0（原大小）
-    // 字体选项（下拉选择：1.1~2.0倍）
+    // 关怀模式相关
+    careMode: false,
+    fontSizeMultiple: 1.0,
     fontOptions: [
       { name: "1.1倍", value: 1.1 },
       { name: "1.2倍", value: 1.2 },
@@ -31,13 +30,11 @@ Page({
       { name: "1.8倍", value: 1.8 },
       { name: "2.0倍", value: 2.0 },
     ],
-    currentFontIndex: 0, // 默认选中第一个选项
+    currentFontIndex: 0,
   },
 
   onLoad() {
-    // 优先加载完整的用户数据（包含所有设置的字段）
     this.loadAllUserData();
-    // 读取本地缓存的关怀模式设置
     this.loadCareModeSetting();
   },
 
@@ -45,10 +42,8 @@ Page({
   loadCareModeSetting() {
     try {
       const careMode = wx.getStorageSync("careMode") || false;
-      let fontSizeMultiple = wx.getStorageSync("fontSizeMultiple") || 1.1; // 默认1.1倍
-      // 确保倍数在1.1~2.0范围内
+      let fontSizeMultiple = wx.getStorageSync("fontSizeMultiple") || 1.1;
       fontSizeMultiple = Math.max(1.1, Math.min(2.0, fontSizeMultiple));
-      // 匹配对应的下拉索引（关键修复）
       const currentFontIndex =
         this.data.fontOptions.findIndex(
           (item) => item.value === fontSizeMultiple,
@@ -63,10 +58,9 @@ Page({
     }
   },
 
-  // 关怀模式开关切换（关闭时自动还原字体为1.0）
+  // 关怀模式开关切换
   onCareModeSwitchChange(e) {
     const careMode = e.detail.value;
-    // 关闭关怀模式时，强制将字体还原为1.0
     const fontSizeMultiple = careMode
       ? this.data.fontOptions[this.data.currentFontIndex].value
       : 1.0;
@@ -74,10 +68,8 @@ Page({
       careMode,
       fontSizeMultiple,
     });
-    // 保存到本地缓存
     wx.setStorageSync("careMode", careMode);
     wx.setStorageSync("fontSizeMultiple", fontSizeMultiple);
-    // 提示
     wx.showToast({
       title: careMode ? "已开启关怀模式" : "已关闭关怀模式（字体已还原）",
       icon: "none",
@@ -92,11 +84,10 @@ Page({
       currentFontIndex: index,
       fontSizeMultiple: selectedFont.value,
     });
-    // 保存到本地缓存
     wx.setStorageSync("fontSizeMultiple", selectedFont.value);
   },
 
-  // 原有方法：加载用户数据（统一剩余天数计算逻辑）
+  // 加载用户数据（修复：到期自动关闭提醒）
   async loadAllUserData() {
     try {
       const app = getApp();
@@ -110,7 +101,6 @@ Page({
           ? new Date(userData.createTime)
           : new Date();
         const isFormal = userData.isFormalVersion || false;
-        // 统一到期日计算：优先取数据库的serviceEndTime，无则用创建时间+3天
         const trialEndTime = new Date(
           userData.serviceEndTime ||
             (() => {
@@ -120,7 +110,6 @@ Page({
             })(),
         );
         const now = new Date();
-        // 统一剩余天数计算：不足1天则为0
         const remainingDays = isFormal
           ? 0
           : Math.max(
@@ -128,10 +117,13 @@ Page({
               Math.ceil((trialEndTime - now) / (1000 * 60 * 60 * 24)),
             );
 
+        // 修复：服务到期时自动关闭提醒
         const userInfo = {
           name: userData.name || "",
           homeLocation: userData.homeLocation || null,
-          enableRemind: userData.enableRemind ?? true,
+          enableRemind: this.data.isTrialExpired
+            ? false
+            : (userData.enableRemind ?? true),
         };
 
         this.setData({
@@ -171,7 +163,7 @@ Page({
     }
   },
 
-  // 原有方法：日期格式化（无修改）
+  // 日期格式化
   formatDate(date) {
     date = new Date(date);
     const year = date.getFullYear();
@@ -180,10 +172,10 @@ Page({
     return `${year}-${month}-${day}`;
   },
 
-  // 原有方法：签到提醒开关（无修改）
+  // 签到提醒开关（修复：到期禁用）
   async onRemindSwitchChange(e) {
     if (this.data.isTrialExpired) {
-      return wx.showToast({ title: "试用已到期，无法修改", icon: "none" });
+      return wx.showToast({ title: "服务已到期，无法修改提醒", icon: "none" });
     }
 
     const enableRemind = e.detail.value;
@@ -213,25 +205,27 @@ Page({
     }
   },
 
-  // 原有支付相关方法（无修改）
+  // 支付弹窗
   showPayDialog() {
     this.setData({ showPayDialog: true });
   },
   closePayDialog() {
     this.setData({ showPayDialog: false });
   },
+
+  // 选择支付类型
   async choosePayType(e) {
     const type = e.currentTarget.dataset.type;
     const amount = type === "month" ? 3 : 20;
 
     try {
-      wx.showLoading({ title: "创建订单中..." });
+      // wx.showLoading({ title: "创建订单中..." });
       const app = getApp();
       const res = await wx.cloud.callFunction({
         name: "createPayOrder",
         data: { openid: app.globalData.openid, payType: type, amount },
       });
-      wx.hideLoading();
+      // wx.hideLoading();
 
       if (res.result?.success) {
         const payParams = res.result.payParams;
@@ -239,7 +233,11 @@ Page({
           ...payParams,
           success: async () => {
             await this.updateUserVersion(type);
-            wx.showToast({ title: "支付成功，已升级为正式版" });
+            // 修复：区分升级/续费提示
+            const toastTitle = this.data.isFormalVersion
+              ? "续费成功，服务已延长"
+              : "升级成功，已开通正式版";
+            wx.showToast({ title: toastTitle });
             this.closePayDialog();
           },
           fail: (payErr) => {
@@ -260,26 +258,41 @@ Page({
         });
       }
     } catch (err) {
-      wx.hideLoading();
+      // wx.hideLoading();
       console.error("支付失败：", err);
       wx.showToast({ title: "支付异常，请重试", icon: "none" });
     }
   },
+
+  // 核心修改：区分试用是否过期，不同规则计算有效期
   async updateUserVersion(payType) {
     try {
       const app = getApp();
       const now = new Date();
-      let serviceEndTime = new Date(now);
+      const userRes = await usersCol
+        .where({ _openid: app.globalData.openid })
+        .get();
 
+      let currentServiceEnd;
+      if (userRes.data.length > 0) {
+        // 有用户记录时，判断试用是否过期
+        const userData = userRes.data[0];
+        const trialEndTime = new Date(userData.serviceEndTime);
+        // 未过期：用原结束时间；已过期：用当前时间
+        currentServiceEnd = this.data.isTrialExpired ? now : trialEndTime;
+      } else {
+        // 无用户记录，用当前时间
+        currentServiceEnd = now;
+      }
+
+      // 计算新的结束时间
+      let serviceEndTime = new Date(currentServiceEnd);
       if (payType === "month") {
         serviceEndTime.setDate(serviceEndTime.getDate() + 30);
       } else {
         serviceEndTime.setFullYear(serviceEndTime.getFullYear() + 1);
       }
 
-      const userRes = await usersCol
-        .where({ _openid: app.globalData.openid })
-        .get();
       const updateData = {
         isFormalVersion: true,
         serviceStartTime: this.formatDate(now),
@@ -308,18 +321,30 @@ Page({
     }
   },
 
-  // 原有关于弹窗方法（无修改）
+  // 关于弹窗
   showAboutDialog() {
-    this.setData({ showAtDialog: true });
+    this.setData({ showAboutDialog: true });
   },
   closeAboutDialog() {
-    this.setData({ showAtDialog: false });
+    this.setData({ showAboutDialog: false });
   },
 
-  // 原有页面显示方法（无修改）
+  // 分享
+  onShareAppMessage() {
+    return {
+      title: "咱爸咱妈平安签，守护家人安全",
+      path: "/pages/index/index",
+      imageUrl: "../../images/001.jpg",
+    };
+  },
+  onShareTimeline() {
+    return {
+      title: "咱爸咱妈平安签，守护家人安全",
+      imageUrl: "../../images/001.jpg",
+    };
+  },
+
   onShow() {
-    this.loadAllUserData();
-    // 重新读取关怀模式设置，确保切换页面后生效
     this.loadCareModeSetting();
   },
 });
