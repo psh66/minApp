@@ -24,3 +24,7 @@
 .setting-switch {
   transform: scale(0.8);
 }
+.hover-class {
+  transform: scale(0.95);
+  box-shadow: 0 8rpx 20rpx rgba(7, 193, 96, 0.6);
+}
