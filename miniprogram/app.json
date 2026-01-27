@@ -3,7 +3,8 @@
     "pages/index/index",
     "pages/example/index",
     "pages/mian/index",
-    "pages/my/index"
+    "pages/my/index",
+    "pages/admin/index"
   ],
   "window": {
     "backgroundColor": "#F6F6F6",
@@ -19,13 +20,8 @@
       "desc": "用于设置家庭位置和一键回家导航，以及发送实时定位"
     }
   },
-  "requiredPrivateInfos": [
-    "chooseLocation",
-    "getLocation"
-  ],
-  "requiredBackgroundModes": [
-    "location"
-  ],
+  "requiredPrivateInfos": ["chooseLocation", "getLocation"],
+  "requiredBackgroundModes": ["location"],
   "tabBar": {
     "list": [
       {

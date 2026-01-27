@@ -1,0 +1,67 @@
+<view class="container" style="padding: 20rpx; background: #f5f5f5; min-height: 100vh;">
+  <!-- 通知栏控制区域 -->
+  <view style="background: white; border-radius: 16rpx; padding: 20rpx; margin-bottom: 20rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
+    <view style="font-size: {{32 * fontSizeMultiple}}rpx; color: #333; font-weight: 500; margin-bottom: 15rpx;">通知栏控制</view>
+    <view style="display: flex; align-items: center; margin-bottom: 15rpx;">
+      <view style="font-size: {{26 * fontSizeMultiple}}rpx; color: #666; width: 200rpx;">是否展示通知</view>
+      <switch checked="{{notice.showNotice}}" bindchange="toggleNotice" style="transform: scale(1.1);"/>
+    </view>
+    <view style="display: flex; flex-direction: column;">
+      <view style="font-size: {{26 * fontSizeMultiple}}rpx; color: #666; margin-bottom: 10rpx;">通知内容</view>
+      <input value="{{notice.noticeContent}}" bindinput="updateNoticeContent" style="border: 1px solid #e5e5e5; border-radius: 8rpx; padding: 15rpx; font-size: {{24 * fontSizeMultiple}}rpx;"/>
+    </view>
+    <button bindtap="saveNoticeConfig" style="background: #1890ff; color: white; border: none; border-radius: 8rpx; font-size: {{26 * fontSizeMultiple}}rpx; padding: 12rpx 0; margin-top: 15rpx;">保存通知配置</button>
+  </view>
+
+  <!-- 用户管理区域 -->
+  <view style="background: white; border-radius: 16rpx; padding: 20rpx; margin-bottom: 20rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
+    <view style="font-size: {{34 * fontSizeMultiple}}rpx; color: #333; font-weight: 500; margin-bottom: 20rpx;">用户管理后台</view>
+    
+    <!-- 筛选按钮 -->
+    <view style="display: flex; gap: 10rpx; flex-wrap: wrap; margin-bottom: 20rpx;">
+      <button bindtap="filterUsers" data-type="all" style="flex: 1; background: {{currentFilter === 'all' ? '#1890ff' : '#f5f5f5'}}; color: {{currentFilter === 'all' ? 'white' : '#333'}}; border: none; border-radius: 8rpx; font-size: {{26 * fontSizeMultiple}}rpx;">全部用户</button>
+      <button bindtap="filterUsers" data-type="expired" style="flex: 1; background: {{currentFilter === 'expired' ? '#ff4d4f' : '#f5f5f5'}}; color: {{currentFilter === 'expired' ? 'white' : '#333'}}; border: none; border-radius: 8rpx; font-size: {{26 * fontSizeMultiple}}rpx;">失效用户</button>
+      <button bindtap="filterUsers" data-type="trial" style="flex: 1; background: {{currentFilter === 'trial' ? '#ff7d00' : '#f5f5f5'}}; color: {{currentFilter === 'trial' ? 'white' : '#333'}}; border: none; border-radius: 8rpx; font-size: {{26 * fontSizeMultiple}}rpx;">试用用户</button>
+      <button bindtap="filterUsers" data-type="formal" style="flex: 1; background: {{currentFilter === 'formal' ? '#07c160' : '#f5f5f5'}}; color: {{currentFilter === 'formal' ? 'white' : '#333'}}; border: none; border-radius: 8rpx; font-size: {{26 * fontSizeMultiple}}rpx;">付费用户</button>
+    </view>
+
+    <!-- 用户表格 -->
+    <view style="overflow-x: auto;">
+      <view style="display: flex; background: #f0f9ff; border-radius: 8rpx 8rpx 0 0; padding: 15rpx 0;">
+        <view style="width: 12%; text-align: center; font-size: {{24 * fontSizeMultiple}}rpx; color: #333; font-weight: 500;">序号</view>
+        <view style="width: 25%; text-align: center; font-size: {{24 * fontSizeMultiple}}rpx; color: #333; font-weight: 500;">用户昵称</view>
+        <view style="width: 20%; text-align: center; font-size: {{24 * fontSizeMultiple}}rpx; color: #333; font-weight: 500;">用户类型</view>
+        <view style="width: 23%; text-align: center; font-size: {{24 * fontSizeMultiple}}rpx; color: #333; font-weight: 500;">服务有效期</view>
+        <view style="width: 20%; text-align: center; font-size: {{24 * fontSizeMultiple}}rpx; color: #333; font-weight: 500;">操作</view>
+      </view>
+
+      <!-- 用户列表 -->
+      <view wx:for="{{filteredUsers}}" wx:key="_id" style="display: flex; align-items: center; padding: 15rpx 0; border-bottom: 1px solid #f5f5f5; background: white;">
+        <view style="width: 12%; text-align: center; font-size: {{22 * fontSizeMultiple}}rpx; color: #666;">{{index + 1}}</view>
+        <view style="width: 25%; text-align: center; font-size: {{22 * fontSizeMultiple}}rpx; color: #333;">{{item.name || '未设置'}}</view>
+        <view style="width: 20%; text-align: center;">
+          <view style="display: inline-block; padding: 4rpx 12rpx; border-radius: 16rpx; font-size: {{20 * fontSizeMultiple}}rpx; color: white; background: {{item.userType === 'expired' ? '#ff4d4f' : (item.userType === 'trial' ? '#ff7d00' : '#07c160')}};">
+            {{item.userType === 'expired' ? '失效' : (item.userType === 'trial' ? '试用' : '付费')}}
+          </view>
+        </view>
+        <view style="width: 23%; text-align: center; font-size: {{20 * fontSizeMultiple}}rpx; color: #666;">{{item.serviceStartTime}} - {{item.serviceEndTime}}</view>
+        <view style="width: 20%; text-align: center; display: flex; flex-direction: column; gap: 8rpx;">
+          <input 
+            placeholder="输入天数" 
+            type="number" 
+            bindinput="setExtendDays" 
+            data-id="{{item._id}}"
+            value="{{extendDaysMap[item._id] || ''}}"
+            style="border: 1px solid #e5e5e5; border-radius: 8rpx; padding: 8rpx; font-size: {{20 * fontSizeMultiple}}rpx;"
+          />
+          <button bindtap="extendService" data-id="{{item._id}}" style="background: #1890ff; color: white; border: none; border-radius: 8rpx; font-size: {{20 * fontSizeMultiple}}rpx; padding: 8rpx 0;">确认续期</button>
+        </view>
+      </view>
+    </view>
+
+    <!-- 无数据提示 -->
+    <view wx:if="{{filteredUsers.length === 0}}" style="text-align: center; padding: 40rpx; font-size: {{26 * fontSizeMultiple}}rpx; color: #999;">
+      暂无符合条件的用户
+    </view>
+  </view>
+</view>

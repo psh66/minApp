@@ -1,4 +1,17 @@
 <view class="container" style="padding: 20rpx; background: linear-gradient(to bottom, #f0f9ff, #ffffff); min-height: 100vh;">
+<view wx:if="{{notice.showNotice}}" style="background: linear-gradient(90deg, #fff8e1 0%, #fff3cd 100%); padding: 12rpx 16rpx; border-radius: 8rpx; margin: 10rpx; display: flex; align-items: center; box-shadow: 0 2rpx 8rpx rgba(255, 125, 0, 0.1);">
+  <!-- 喇叭图标（使用emoji，无需图标库，避免额外依赖） -->
+  <view style="margin-right: 12rpx; font-size: {{28 * fontSizeMultiple}}rpx;">
+    📢
+  </view>
+  
+  <!-- 滚动通知文本容器 -->
+  <view style="flex: 1; overflow: hidden; height: {{40 * fontSizeMultiple}}rpx; line-height: {{40 * fontSizeMultiple}}rpx;">
+    <view class="notice-text" style="white-space: nowrap; position: relative; animation: scroll 20s linear infinite; font-size: {{24 * fontSizeMultiple}}rpx; color: #ff7d00; font-weight: 500;">
+      {{notice.noticeContent}}
+    </view>
+  </view>
+</view>
   <!-- 模式切换按钮（右上角） -->
   <view style="display: flex; justify-content: flex-end; margin-bottom: 20rpx;">
     <button bindtap="showModeSwitchSheet" style="background: #1890ff; color: white; border: none; padding: 12rpx 24rpx; border-radius: 8rpx; font-size: {{24 * fontSizeMultiple}}rpx; width: 200rpx;">
@@ -103,39 +116,30 @@
       </view>
     </view>
   </view>
-
-  <!-- 关怀模式（子女可控制父母端） -->
-  <view style="margin-bottom: 25rpx;">
-    <view style="font-size: {{32 * fontSizeMultiple}}rpx; color: #333; margin-bottom: 10rpx;">
-      {{isChildMode ? '父母关怀模式' : '关怀模式'}}
-    </view>
-    <view style="background: white; border-radius: 12rpx; padding: 15rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
-      <view style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15rpx;">
-        <view style="font-size: {{28 * fontSizeMultiple}}rpx; color: #333;">开启关怀模式（大字体）</view>
-        <switch checked="{{careMode}}" bindchange="onCareModeSwitchChange" disabled="{{isTrialExpired && !isChildMode}}" style="transform: scale(1.1);"/>
-      </view>
-      <view wx:if="{{careMode}}" style="padding: 15rpx; border-top: 1px solid #f5f5f5;">
-        <view style="font-size: {{26 * fontSizeMultiple}}rpx; color: #666; margin-bottom: 10rpx;">字体大小：{{Math.round(fontSizeMultiple * 100)}}%</view>
-        <picker mode="selector" range="{{fontOptions}}" range-key="name" value="{{currentFontIndex}}" bindchange="onFontChange" style="width: 100%;">
-          <view style="border: 2px solid #1890ff; border-radius: 8rpx; padding: 18rpx; font-size: {{28 * fontSizeMultiple}}rpx; color: #1890ff; background: #f0f9ff;">{{fontOptions[currentFontIndex].name}}（当前）</view>
-        </picker>
-      </view>
+    <!-- 紧急呼叫（仅父母模式显示） -->
+  <view wx:if="{{!isChildMode}}" style="margin-bottom: 25rpx;">
+    <view style="font-size: {{32 * fontSizeMultiple}}rpx; color: #333; margin-bottom: 10rpx;">紧急呼叫</view>
+    <view style="background: white; border-radius: 12rpx; padding: 15rpx; display: flex; gap: 10rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
+      <button bindtap="callPhone" data-phone="120" style="background: #ff4d4f; color: white; border: none; padding: 12rpx 15rpx; border-radius: 8rpx; font-size: {{26 * fontSizeMultiple}}rpx; flex: 1;">120 急救中心</button>
+      <button bindtap="callPhone" data-phone="110" style="background: #1890ff; color: white; border: none; padding: 12rpx 15rpx; border-radius: 8rpx; font-size: {{26 * fontSizeMultiple}}rpx; flex: 1;">110 报警电话</button>
+      <button bindtap="callPhone" data-phone="119" style="background: #ff7d00; color: white; border: none; padding: 12rpx 15rpx; border-radius: 8rpx; font-size: {{26 * fontSizeMultiple}}rpx; flex: 1;">119 火警电话</button>
     </view>
   </view>
 
-  <!-- 未签到提醒开关（子女可控制父母端） -->
-  <view style="margin-bottom: 25rpx;">
-    <view style="font-size: {{32 * fontSizeMultiple}}rpx; color: #333; margin-bottom: 10rpx;">
-      {{isChildMode ? '父母未签到提醒' : '未签到提醒'}}
-    </view>
-    <view style="background: white; border-radius: 12rpx; padding: 15rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
-      <view style="display: flex; justify-content: space-between; align-items: center;">
-        <view style="font-size: {{28 * fontSizeMultiple}}rpx; color: #333;">连续2天未签到发送邮箱提醒</view>
-        <switch checked="{{enableRemind}}" bindchange="onRemindSwitchChange" disabled="{{isTrialExpired && !isChildMode}}" style="transform: scale(1.1);"/>
-      </view>
+  <!-- 紧急工具（仅父母模式显示） -->
+  <view wx:if="{{!isChildMode}}" style="margin-bottom: 25rpx;">
+    <view style="font-size: {{32 * fontSizeMultiple}}rpx; color: #333; margin-bottom: 10rpx;">紧急工具</view>
+    <view style="background: white; border-radius: 12rpx; padding: 15rpx; display: flex; gap: 10rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
+      <button bindtap="goHome" disabled="{{isTrialExpired}}"
+        style="background: {{isTrialExpired ? '#ccc' : '#ff7d00'}}; color: white; border: none; padding: 12rpx 0; border-radius: 12rpx; font-size: {{26 * fontSizeMultiple}}rpx; flex: 1; box-shadow: 0 4rpx 8rpx rgba(255, 125, 0, 0.3);">
+        一键回家
+      </button>
+      <button bindtap="sendLocation" disabled="{{isTrialExpired}}"
+        style="background: {{isTrialExpired ? '#ccc' : '#1890ff'}}; color: white; border: none; padding: 12rpx 0; border-radius: 12rpx; font-size: {{26 * fontSizeMultiple}}rpx; flex: 1; box-shadow: 0 4rpx 8rpx rgba(24, 144, 255, 0.3);">
+        一键发送定位
+      </button>
     </view>
   </view>
-
   <!-- 我的联系人（子女可管理父母端） -->
   <view style="margin-bottom: 25rpx;">
     <view style="font-size: {{32 * fontSizeMultiple}}rpx; color: #333; margin-bottom: 10rpx;">
@@ -180,32 +184,6 @@
       </button>
     </view>
   </view>
-
-  <!-- 紧急呼叫（仅父母模式显示） -->
-  <view wx:if="{{!isChildMode}}" style="margin-bottom: 25rpx;">
-    <view style="font-size: {{32 * fontSizeMultiple}}rpx; color: #333; margin-bottom: 10rpx;">紧急呼叫</view>
-    <view style="background: white; border-radius: 12rpx; padding: 15rpx; display: flex; gap: 10rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
-      <button bindtap="callPhone" data-phone="120" style="background: #ff4d4f; color: white; border: none; padding: 12rpx 15rpx; border-radius: 8rpx; font-size: {{26 * fontSizeMultiple}}rpx; flex: 1;">120 急救中心</button>
-      <button bindtap="callPhone" data-phone="110" style="background: #1890ff; color: white; border: none; padding: 12rpx 15rpx; border-radius: 8rpx; font-size: {{26 * fontSizeMultiple}}rpx; flex: 1;">110 报警电话</button>
-      <button bindtap="callPhone" data-phone="119" style="background: #ff7d00; color: white; border: none; padding: 12rpx 15rpx; border-radius: 8rpx; font-size: {{26 * fontSizeMultiple}}rpx; flex: 1;">119 火警电话</button>
-    </view>
-  </view>
-
-  <!-- 紧急工具（仅父母模式显示） -->
-  <view wx:if="{{!isChildMode}}" style="margin-bottom: 25rpx;">
-    <view style="font-size: {{32 * fontSizeMultiple}}rpx; color: #333; margin-bottom: 10rpx;">紧急工具</view>
-    <view style="background: white; border-radius: 12rpx; padding: 15rpx; display: flex; gap: 10rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
-      <button bindtap="goHome" disabled="{{isTrialExpired}}"
-        style="background: {{isTrialExpired ? '#ccc' : '#ff7d00'}}; color: white; border: none; padding: 12rpx 0; border-radius: 12rpx; font-size: {{26 * fontSizeMultiple}}rpx; flex: 1; box-shadow: 0 4rpx 8rpx rgba(255, 125, 0, 0.3);">
-        一键回家
-      </button>
-      <button bindtap="sendLocation" disabled="{{isTrialExpired}}"
-        style="background: {{isTrialExpired ? '#ccc' : '#1890ff'}}; color: white; border: none; padding: 12rpx 0; border-radius: 12rpx; font-size: {{26 * fontSizeMultiple}}rpx; flex: 1; box-shadow: 0 4rpx 8rpx rgba(24, 144, 255, 0.3);">
-        一键发送定位
-      </button>
-    </view>
-  </view>
-
   <!-- 弹窗组件（所有模式通用） -->
   <!-- 添加邮箱弹窗 -->
   <view wx:if="{{showEmailDialog}}" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999; display: flex; align-items: center; justify-content: center;">

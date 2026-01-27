@@ -4,15 +4,24 @@ App({
     env: "cloud1-1g3o4tw9e7ccdcb7",
     openid: "",
     // 子女模式全局状态
-    currentMode: "parent",       
-    bindParentOpenid: "",        
-    bindParentInfo: {}           
+    currentMode: "parent",
+    bindParentOpenid: "",
+    bindParentInfo: {},
   },
 
   onLaunch: function () {
+    // ⭐ 新增：读取本地缓存恢复模式状态（持久化核心）
+    const cachedMode = wx.getStorageSync("currentMode") || "parent";
+    const cachedParentOpenid = wx.getStorageSync("bindParentOpenid") || "";
+    const cachedParentInfo = wx.getStorageSync("bindParentInfo") || {};
+    // ⭐ 新增：缓存数据同步到全局，确保状态一致
+    this.globalData.currentMode = cachedMode;
+    this.globalData.bindParentOpenid = cachedParentOpenid;
+    this.globalData.bindParentInfo = cachedParentInfo;
+
     if (!wx.cloud) {
       console.error("请使用 2.2.3 或以上的基础库以使用云能力");
-      wx.showToast({ title: '基础库版本过低，不支持云开发', icon: 'none' });
+      wx.showToast({ title: "基础库版本过低，不支持云开发", icon: "none" });
       return;
     } else {
       wx.cloud.init({
@@ -30,17 +39,17 @@ App({
   // 获取openid（原有正确逻辑）
   async getOpenid() {
     try {
-      const res = await wx.cloud.callFunction({ 
-        name: 'quickstartFunctions',
+      const res = await wx.cloud.callFunction({
+        name: "quickstartFunctions",
         data: {
-          type: "getOpenId"
-        }
+          type: "getOpenId",
+        },
       });
       this.globalData.openid = res.result.openid;
       console.log("✅ OpenID获取成功：", this.globalData.openid);
     } catch (err) {
       console.error("❌ OpenID获取失败：", err);
-      wx.showToast({ title: 'OpenID获取失败', icon: 'none' });
+      wx.showToast({ title: "OpenID获取失败", icon: "none" });
     }
   },
 
@@ -58,7 +67,7 @@ App({
       console.log("✅ 模式状态恢复成功：", {
         currentMode,
         bindParentOpenid: bindParentOpenid ? "已绑定" : "未绑定",
-        bindParentName: bindParentInfo.name || "无"
+        bindParentName: bindParentInfo.name || "无",
       });
     } catch (err) {
       console.error("❌ 模式状态恢复失败：", err);
@@ -82,5 +91,5 @@ App({
       console.error("❌ 模式状态保存失败：", err);
       wx.showToast({ title: "模式状态保存失败", icon: "none" });
     }
-  }
+  },
 });

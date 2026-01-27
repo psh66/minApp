@@ -3,9 +3,14 @@ const contactsCol = db.collection("contacts");
 const signCol = db.collection("signRecords");
 const usersCol = db.collection("users");
 const emailsCol = db.collection("emails");
+const bindRelationsCol = db.collection("bindRelations");
 
 Page({
   data: {
+    notice: {
+      showNotice: false,
+      noticeContent: "",
+    },
     isSigned: false,
     contactsList: [],
     showEmailDialog: false,
@@ -21,13 +26,10 @@ Page({
     isTrialExpired: false,
     serviceStartTime: "",
     serviceEndTime: "",
-    // 新增：关怀模式相关字段
     careMode: false,
     fontSizeMultiple: 1.0,
     fontSizeMin: 0.8,
     fontSizeMax: 2.0,
-
-    // 天气核心数据（含3天预报+详情字段）
     todayWeather: {
       dateText: "今天",
       temp: "--",
@@ -67,29 +69,21 @@ Page({
       sunset: "--",
       precip: "--",
     },
-
-    // 和风天气配置（替换为你自己的API Key）
     weatherApiKey: "06e8e23e12164644a95b6c77fdd15c0b",
-
-    // 弹窗/切换状态控制
-    showLocationModal: false, // 定位授权弹窗
-    showWeatherDetail: false, // 天气详情弹窗
-    currentWeatherTab: 0, // 0=今天/1=明天/2=后天
-    activeWeatherData: {}, // 当前显示的天气数据（用于详情弹窗）
-
-    // ========== 新增：父母/子女模式相关字段 ==========
-    isChildMode: false, // 是否为子女模式
-    showModeSheet: false, // 模式切换弹窗
-    bindCode: "", // 父母绑定码
-    parentSignStatus: false, // 父母今日签到状态
-    parentSignHistory: [], // 父母7天签到历史
-    // 新增：输入框聚焦状态（适配WXML高亮）
+    showLocationModal: false,
+    showWeatherDetail: false,
+    currentWeatherTab: 0,
+    activeWeatherData: {},
+    isChildMode: false,
+    showModeSheet: false,
+    bindCode: "",
+    parentSignStatus: false,
+    parentSignHistory: [],
     focusUserName: false,
     focusEmail: false,
     focusContactName: false,
     focusContactPhone: false,
     focusBindCode: false,
-    // 新增：关怀模式字体选项（保留原有fontSizeMultiple，新增选项列表）
     fontOptions: [
       { name: "标准字体", multiple: 1.0 },
       { name: "放大10%", multiple: 1.1 },
@@ -97,9 +91,9 @@ Page({
       { name: "放大30%", multiple: 1.3 },
       { name: "放大40%", multiple: 1.4 },
     ],
-    currentFontIndex: 0, // 当前选中字体索引
-    // 新增：提醒开关
-    enableRemind: false
+    currentFontIndex: 0,
+    enableRemind: false,
+    weatherList: [],
   },
 
   onShareAppMessage() {
@@ -117,79 +111,145 @@ Page({
     };
   },
 
+  // 权限校验通用方法
+  async checkChildPermission(targetOpenid) {
+    const app = getApp();
+    if (!this.data.isChildMode) return true;
+
+    try {
+      const bindRes = await bindRelationsCol.doc(app.globalData.openid).get();
+      if (!bindRes.data) {
+        wx.showToast({ title: "未绑定父母账号，请重新绑定", icon: "none" });
+        return false;
+      }
+      if (bindRes.data.parentOpenid !== targetOpenid) {
+        wx.showToast({ title: "无权限操作该父母数据", icon: "none" });
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.error("权限校验失败：", err);
+      wx.showToast({ title: `校验失败：${err.errMsg}`, icon: "none" });
+      return false;
+    }
+  },
+
+  // 新增：加载目标用户配置（邮件提醒+关怀模式，与我的页面同步）
+  async loadTargetUserConfig() {
+    const app = getApp();
+    const targetOpenid = this.data.isChildMode
+      ? app.globalData.bindParentOpenid
+      : app.globalData.openid;
+
+    try {
+      const res = await usersCol.where({ _openid: targetOpenid }).get();
+      if (res.data.length > 0) {
+        const userConfig = res.data[0];
+        const currentFontIndex =
+          this.data.fontOptions.findIndex(
+            (item) =>
+              Math.abs(item.multiple - (userConfig.fontSizeMultiple || 1.0)) <
+              0.01,
+          ) || 0;
+        this.setData({
+          enableRemind: userConfig.enableRemind ?? false,
+          careMode: userConfig.careMode ?? false,
+          fontSizeMultiple: userConfig.fontSizeMultiple || 1.0,
+          currentFontIndex,
+        });
+      }
+    } catch (err) {
+      console.error("加载目标用户配置失败：", err);
+    }
+  },
+
   async onLoad() {
-    // ========== 新增：初始化全局模式数据 ==========
     const app = getApp();
     if (!app.globalData) {
       app.globalData = {
         currentMode: "parent",
         openid: "",
-        bindParentOpenid: ""
+        bindParentOpenid: "",
       };
     }
     this.setData({
-      isChildMode: app.globalData.currentMode === "child"
+      isChildMode: app.globalData.currentMode === "child",
     });
 
-    // 原有逻辑：读取关怀模式设置
     this.loadCareModeSetting();
-    this.loadWeather(); // 初始化加载天气
-
-    // 原有逻辑：先获取版本信息，再检查试用期
+    this.loadNoticeConfig(); // 加载通知配置
+    this.loadWeather();
     await this.getVersionInfo();
     this.checkTrialExpired();
+    this.loadTargetUserConfig(); // 加载同步配置
 
-    // 检查签到状态
-    const isSignedCache = wx.getStorageSync("isSignedToday");
-    if (isSignedCache) {
-      this.setData({ isSigned: true });
-    } else {
-      await this.checkSignStatus().catch((err) =>
-        console.error("检查签到状态失败：", err),
-      );
+    if (!this.data.isChildMode) {
+      const isSignedCache = wx.getStorageSync("isSignedToday");
+      this.setData({ isSigned: isSignedCache || false });
+      if (!isSignedCache) {
+        await this.checkSignStatus().catch((err) =>
+          console.error("检查签到状态失败：", err),
+        );
+      }
     }
 
-    // 获取联系人、邮箱列表
     this.getContactsList();
     this.checkUserEmail();
-
-    // ========== 新增：加载父母签到数据（子女模式下） ==========
     this.loadParentSignData();
   },
 
-  // ========== 新增：页面显示时刷新模式和签到数据 ==========
-  onShow() {
+  async onShow() {
     const app = getApp();
     this.setData({
-      isChildMode: app.globalData.currentMode === "child"
+      isChildMode: app.globalData.currentMode === "child",
     });
-    this.loadParentSignData();
-    // 原有逻辑：刷新关怀模式和版本信息
     this.loadCareModeSetting();
-    this.getVersionInfo();
+    await this.getVersionInfo();
+    this.checkTrialExpired();
+    this.loadParentSignData();
+    this.getContactsList();
+    this.checkUserEmail();
+    this.loadTargetUserConfig(); // 刷新同步配置
   },
-
-  // 原有方法：计算两点经纬度距离
+  // 新增：加载后台通知配置
+  async loadNoticeConfig() {
+    try {
+      const res = await db.collection("noticeConfig").get();
+      console.log("加载通知配置成功：", res);
+      if (res.data.length > 0) {
+        this.setData({ notice: res.data[0] });
+      }
+    } catch (err) {
+      console.error("加载通知配置失败：", err);
+    }
+  },
   calculateDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371; // 地球平均半径（公里）
-    const radLat1 = Math.PI * lat1 / 180;
-    const radLat2 = Math.PI * lat2 / 180;
+    const R = 6371;
+    const radLat1 = (Math.PI * lat1) / 180;
+    const radLat2 = (Math.PI * lat2) / 180;
     const a = radLat1 - radLat2;
-    const b = Math.PI * lon1 / 180 - Math.PI * lon2 / 180;
-    let s = 2 * Math.asin(Math.sqrt(Math.pow(Math.sin(a/2), 2) + Math.cos(radLat1) * Math.cos(radLat2) * Math.pow(Math.sin(b/2), 2)));
+    const b = (Math.PI * lon1) / 180 - (Math.PI * lon2) / 180;
+    let s =
+      2 *
+      Math.asin(
+        Math.sqrt(
+          Math.pow(Math.sin(a / 2), 2) +
+            Math.cos(radLat1) *
+              Math.cos(radLat2) *
+              Math.pow(Math.sin(b / 2), 2),
+        ),
+      );
     s = s * R;
-    return Math.round(s * 100) / 100; // 保留两位小数
+    return Math.round(s * 100) / 100;
   },
 
-  // 原有方法：加载天气数据
   async loadWeather() {
     try {
-      const DISTANCE_THRESHOLD = 20; // 触发更新的距离阈值：20公里
+      const DISTANCE_THRESHOLD = 20;
       const today = this.formatDate(new Date());
       const cacheInfo = wx.getStorageSync("weatherCacheInfo") || {};
       const { cacheDate, weatherData, cacheLat, cacheLon } = cacheInfo;
 
-      // 1. 先获取当前定位
       let locationRes;
       try {
         locationRes = await new Promise((resolve, reject) => {
@@ -210,30 +270,53 @@ Page({
       }
       const { latitude: currentLat, longitude: currentLon } = locationRes;
 
-      // 2. 判断缓存是否可用
       let isCacheValid = false;
       if (cacheDate === today && weatherData && cacheLat && cacheLon) {
-        const distance = this.calculateDistance(cacheLat, cacheLon, currentLat, currentLon);
+        const distance = this.calculateDistance(
+          cacheLat,
+          cacheLon,
+          currentLat,
+          currentLon,
+        );
         isCacheValid = distance < DISTANCE_THRESHOLD;
-        if (isCacheValid) {
-          console.log(`[天气模块] 当前位置与缓存位置距离${distance}公里，复用缓存`);
-        } else {
-          console.log(`[天气模块] 当前位置与缓存位置距离${distance}公里，超过20公里阈值，重新请求`);
-        }
       }
 
-      // 3. 缓存可用则直接复用
       if (isCacheValid) {
         this.setData({
           todayWeather: weatherData.todayWeather,
           tomorrowWeather: weatherData.tomorrowWeather,
           day3Weather: weatherData.day3Weather,
           activeWeatherData: weatherData.todayWeather,
+          weatherList: [
+            {
+              date: weatherData.todayWeather.dateText,
+              weather: weatherData.todayWeather.desc,
+              tempMin: weatherData.todayWeather.temp.split("~")[0],
+              tempMax: weatherData.todayWeather.temp
+                .split("~")[1]
+                .replace("℃", ""),
+            },
+            {
+              date: weatherData.tomorrowWeather.dateText,
+              weather: weatherData.tomorrowWeather.desc,
+              tempMin: weatherData.tomorrowWeather.temp.split("~")[0],
+              tempMax: weatherData.tomorrowWeather.temp
+                .split("~")[1]
+                .replace("℃", ""),
+            },
+            {
+              date: weatherData.day3Weather.dateText,
+              weather: weatherData.day3Weather.desc,
+              tempMin: weatherData.day3Weather.temp.split("~")[0],
+              tempMax: weatherData.day3Weather.temp
+                .split("~")[1]
+                .replace("℃", ""),
+            },
+          ],
         });
         return;
       }
 
-      // 4. 缓存不可用，请求天气接口
       const weatherRes = await new Promise((resolve, reject) => {
         wx.request({
           url: `https://m87aar27kq.re.qweatherapi.com/v7/weather/3d`,
@@ -247,14 +330,16 @@ Page({
         });
       });
 
-      // 5. 接口响应处理
       if (!weatherRes || !weatherRes.data) {
         wx.showToast({ title: "天气数据解析失败", icon: "none" });
         console.error("[天气模块] 响应数据为空");
         return;
       }
       if (weatherRes.statusCode !== 200) {
-        wx.showToast({ title: `天气请求失败（${weatherRes.statusCode}）`, icon: "none" });
+        wx.showToast({
+          title: `天气请求失败（${weatherRes.statusCode}）`,
+          icon: "none",
+        });
         console.error("[天气模块] 接口状态码错误：", weatherRes.statusCode);
         return;
       }
@@ -265,14 +350,40 @@ Page({
           const todayWeather = this.formatWeatherData(daily[0], "今天");
           const tomorrowWeather = this.formatWeatherData(daily[1], "明天");
           const day3Weather = this.formatWeatherData(daily[2], "后天");
+          const weatherList = [
+            {
+              date: todayWeather.dateText,
+              weather: todayWeather.desc,
+              tempMin: todayWeather.temp.split("~")[0],
+              tempMax: todayWeather.temp.split("~")[1].replace("℃", ""),
+            },
+            {
+              date: tomorrowWeather.dateText,
+              weather: tomorrowWeather.desc,
+              tempMin: tomorrowWeather.temp.split("~")[0],
+              tempMax: tomorrowWeather.temp.split("~")[1].replace("℃", ""),
+            },
+            {
+              date: day3Weather.dateText,
+              weather: day3Weather.desc,
+              tempMin: day3Weather.temp.split("~")[0],
+              tempMax: day3Weather.temp.split("~")[1].replace("℃", ""),
+            },
+          ];
           const newCacheInfo = {
             cacheDate: today,
             cacheLat: currentLat,
             cacheLon: currentLon,
-            weatherData: { todayWeather, tomorrowWeather, day3Weather }
+            weatherData: { todayWeather, tomorrowWeather, day3Weather },
           };
           wx.setStorageSync("weatherCacheInfo", newCacheInfo);
-          this.setData({ todayWeather, tomorrowWeather, day3Weather, activeWeatherData: todayWeather });
+          this.setData({
+            todayWeather,
+            tomorrowWeather,
+            day3Weather,
+            activeWeatherData: todayWeather,
+            weatherList,
+          });
           console.log("[天气模块] 重新请求并缓存天气数据");
           break;
         case "401":
@@ -296,7 +407,6 @@ Page({
     }
   },
 
-  // 原有方法：日期格式化
   formatDate(date) {
     date = new Date(date);
     const year = date.getFullYear();
@@ -305,7 +415,6 @@ Page({
     return `${year}-${month}-${day}`;
   },
 
-  // 原有方法：格式化天气数据
   formatWeatherData(dailyData, dateText) {
     return {
       dateText,
@@ -322,7 +431,6 @@ Page({
     };
   },
 
-  // 原有方法：天气文字转图标
   getWeatherIcon(text) {
     const iconMap = {
       晴: "☀️",
@@ -339,7 +447,6 @@ Page({
     return iconMap[text] || "🌤️";
   },
 
-  // 原有方法：切换天气标签
   switchWeatherTab(e) {
     const tabIndex = Number(e.currentTarget.dataset.index);
     let activeData = this.data.todayWeather;
@@ -359,7 +466,6 @@ Page({
     );
   },
 
-  // 原有方法：天气详情弹窗
   openWeatherDetail() {
     this.setData({ showWeatherDetail: true });
   },
@@ -367,7 +473,6 @@ Page({
     this.setData({ showWeatherDetail: false });
   },
 
-  // 原有方法：定位授权设置
   goToSetting() {
     this.setData({ showLocationModal: false });
     wx.openSetting({
@@ -382,44 +487,46 @@ Page({
     this.setData({ showLocationModal: false });
   },
 
-  // 原有方法：读取关怀模式设置
   loadCareModeSetting() {
     try {
-      const careMode = wx.getStorageSync("careMode") || false;
-      const fontSizeMultiple = wx.getStorageSync("fontSizeMultiple") || 1.0;
-      const validMultiple = Math.max(
-        this.data.fontSizeMin,
-        Math.min(this.data.fontSizeMax, fontSizeMultiple),
-      );
-      // ========== 新增：计算字体选项索引 ==========
-      const currentFontIndex = this.data.fontOptions.findIndex(item => 
-        Math.abs(item.multiple - validMultiple) < 0.01
-      ) || 0;
-      this.setData({
-        careMode,
-        fontSizeMultiple: validMultiple,
-        currentFontIndex
-      });
+      const app = getApp();
+      const targetOpenid = this.data.isChildMode
+        ? app.globalData.bindParentOpenid
+        : app.globalData.openid;
+      usersCol
+        .where({ _openid: targetOpenid })
+        .get()
+        .then((res) => {
+          if (res.data.length > 0) {
+            const careMode = res.data[0].careMode || false;
+            const fontSizeMultiple = res.data[0].fontSizeMultiple || 1.0;
+            const validMultiple = Math.max(
+              this.data.fontSizeMin,
+              Math.min(this.data.fontSizeMax, fontSizeMultiple),
+            );
+            const currentFontIndex =
+              this.data.fontOptions.findIndex(
+                (item) => Math.abs(item.multiple - validMultiple) < 0.01,
+              ) || 0;
+            this.setData({
+              careMode,
+              fontSizeMultiple: validMultiple,
+              currentFontIndex,
+            });
+          }
+        });
     } catch (err) {
       console.error("读取关怀模式设置失败：", err);
     }
   },
 
-  // 原有方法：页面显示时刷新数据
-  async onShow() {
-    this.loadCareModeSetting();
-    await this.getVersionInfo();
-    this.checkTrialExpired();
-  },
-
-  // 原有方法：获取版本信息
   async getVersionInfo() {
     try {
       const app = getApp();
-      const res = await usersCol
-        .where({ _openid: app.globalData.openid })
-        .get();
-
+      const targetOpenid = this.data.isChildMode
+        ? app.globalData.bindParentOpenid
+        : app.globalData.openid;
+      const res = await usersCol.where({ _openid: targetOpenid }).get();
       if (res.data.length > 0) {
         const userInfo = res.data[0];
         const createTime = userInfo.createTime
@@ -442,8 +549,7 @@ Page({
             userInfo.serviceStartTime || this.formatDate(createTime),
           serviceEndTime:
             userInfo.serviceEndTime || this.formatDate(trialEndTime),
-          // ========== 新增：读取提醒开关状态 ==========
-          enableRemind: userInfo.enableRemind || false
+          enableRemind: userInfo.enableRemind || false,
         });
       } else {
         const now = new Date();
@@ -453,7 +559,7 @@ Page({
           serviceStartTime: this.formatDate(now),
           serviceEndTime: this.formatDate(trialEndTime),
           remainingTrialDays: 3,
-          enableRemind: false
+          enableRemind: false,
         });
       }
     } catch (err) {
@@ -461,7 +567,6 @@ Page({
     }
   },
 
-  // 原有方法：检查试用期
   async checkTrialExpired() {
     const { isFormalVersion, serviceEndTime } = this.data;
     if (!isFormalVersion) {
@@ -481,7 +586,7 @@ Page({
     }
   },
 
-  // 原有方法：检查签到状态
+  // 修复：签到状态判断（未签到时强制设为 false）
   async checkSignStatus() {
     try {
       const app = getApp();
@@ -499,22 +604,25 @@ Page({
 
       const res = await signCol
         .where({
-          openid: app.globalData.openid,
-          signTime: db.command.gte(start).and(db.command.lt(end)),
           _openid: app.globalData.openid,
+          signTime: db.command.gte(start).and(db.command.lt(end)),
         })
         .get();
-      console.log("签到状态：", res);
+
       const isSigned = res.data.length > 0;
-      this.setData({ isSigned });
+      this.setData({ isSigned }); // 未签到时 res.data 为空，isSigned 为 false
       wx.setStorageSync("isSignedToday", isSigned);
     } catch (err) {
       console.error("检查签到状态失败：", err);
+      this.setData({ isSigned: false }); // 异常时强制设为未签到
     }
   },
 
-  // 原有方法：签到
   async handleSign() {
+    if (this.data.isChildMode) {
+      wx.showToast({ title: "子女模式下无法签到", icon: "none" });
+      return;
+    }
     if (this.data.isTrialExpired) {
       return wx.showToast({ title: "试用已到期，请升级正式版", icon: "none" });
     }
@@ -526,7 +634,7 @@ Page({
       const app = getApp();
       await signCol.add({
         data: {
-          openid: app.globalData.openid,
+          _openid: app.globalData.openid,
           signTime: new Date().getTime(),
           createTime: db.serverDate(),
         },
@@ -540,30 +648,32 @@ Page({
     }
   },
 
-  // 原有方法：获取联系人列表
   async getContactsList() {
+    const app = getApp();
+    const targetOpenid = this.data.isChildMode
+      ? app.globalData.bindParentOpenid
+      : app.globalData.openid;
     try {
-      const app = getApp();
-      const res = await contactsCol
-        .where({ _openid: app.globalData.openid })
-        .get();
+      const res = await contactsCol.where({ _openid: targetOpenid }).get();
       this.setData({ contactsList: res.data });
     } catch (err) {
       console.error("获取联系人失败：", err);
-      wx.showToast({ title: "加载联系人失败", icon: "none" });
+      if (err.errMsg.includes("permission denied")) {
+        wx.showToast({ title: "无权限查看父母联系人", icon: "none" });
+      } else {
+        wx.showToast({ title: "加载联系人失败", icon: "none" });
+      }
     }
   },
 
-  // 原有方法：联系人表单输入
   onFormChange(e) {
     const key = e.currentTarget.dataset.key;
-    const value = e.detail;
+    const value = e.detail.value;
     this.setData({
       [`contactForm.${key}`]: value,
     });
   },
 
-  // 原有方法：显示添加联系人弹窗
   showAddDialog() {
     if (this.data.isTrialExpired) {
       return wx.showToast({ title: "试用已到期，请升级正式版", icon: "none" });
@@ -571,7 +681,6 @@ Page({
     this.setData({ showAddDialog: true });
   },
 
-  // 原有方法：取消添加联系人
   onCancelAddContact() {
     this.setData({
       showAddDialog: false,
@@ -579,7 +688,6 @@ Page({
     });
   },
 
-  // 原有方法：确认添加联系人
   async onConfirmAddContact() {
     if (this.data.isTrialExpired) {
       return wx.showToast({ title: "试用已到期，请升级正式版", icon: "none" });
@@ -588,6 +696,12 @@ Page({
     try {
       const app = getApp();
       const { name, phone } = this.data.contactForm;
+      const targetOpenid = this.data.isChildMode
+        ? app.globalData.bindParentOpenid
+        : app.globalData.openid;
+
+      const hasPermission = await this.checkChildPermission(targetOpenid);
+      if (!hasPermission) return;
 
       if (!name.trim()) {
         return wx.showToast({ title: "请输入联系人姓名", icon: "none" });
@@ -604,7 +718,7 @@ Page({
         data: {
           name: name.trim(),
           phone: phone.trim(),
-          openid: app.globalData.openid,
+          _openid: targetOpenid,
           createTime: db.serverDate(),
         },
       });
@@ -614,11 +728,14 @@ Page({
       this.getContactsList();
     } catch (err) {
       console.error("添加联系人失败：", err);
-      wx.showToast({ title: "添加失败，请重试", icon: "none" });
+      if (err.errMsg.includes("permission denied")) {
+        wx.showToast({ title: "无权限添加父母联系人", icon: "none" });
+      } else {
+        wx.showToast({ title: "添加失败，请重试", icon: "none" });
+      }
     }
   },
 
-  // 原有方法：删除联系人
   async deleteContact(e) {
     if (this.data.isTrialExpired) {
       return wx.showToast({ title: "试用已到期，请升级正式版", icon: "none" });
@@ -626,35 +743,48 @@ Page({
 
     try {
       const id = e.currentTarget.dataset.id;
+      const contactRes = await contactsCol.doc(id).get();
+      const targetOpenid = contactRes.data._openid;
+
+      const hasPermission = await this.checkChildPermission(targetOpenid);
+      if (!hasPermission) return;
+
       await contactsCol.doc(id).remove();
       wx.showToast({ title: "联系人删除成功" });
       this.getContactsList();
     } catch (err) {
       console.error("删除联系人失败：", err);
-      wx.showToast({ title: "删除失败，请重试", icon: "none" });
+      if (err.errMsg.includes("permission denied")) {
+        wx.showToast({ title: "无权限删除父母联系人", icon: "none" });
+      } else {
+        wx.showToast({ title: "删除失败，请重试", icon: "none" });
+      }
     }
   },
 
-  // 原有方法：检查用户邮箱
   async checkUserEmail() {
+    const app = getApp();
+    const targetOpenid = this.data.isChildMode
+      ? app.globalData.bindParentOpenid
+      : app.globalData.openid;
+
     try {
-      const app = getApp();
-      const res = await emailsCol
-        .where({ _openid: app.globalData.openid })
-        .get();
+      const res = await emailsCol.where({ _openid: targetOpenid }).get();
       this.setData({ emailList: res.data });
     } catch (err) {
       console.error("获取邮箱失败：", err);
-      wx.showToast({ title: "加载邮箱列表失败", icon: "none" });
+      if (err.errMsg.includes("permission denied")) {
+        wx.showToast({ title: "无权限查看父母邮箱", icon: "none" });
+      } else {
+        wx.showToast({ title: "加载邮箱列表失败", icon: "none" });
+      }
     }
   },
 
-  // 原有方法：邮箱输入
   emailChange(e) {
-    this.setData({ email: e.detail });
+    this.setData({ email: e.detail.value });
   },
 
-  // 原有方法：显示添加邮箱弹窗
   showEmailDialog() {
     if (this.data.isTrialExpired) {
       return wx.showToast({ title: "试用已到期，请升级正式版", icon: "none" });
@@ -662,12 +792,10 @@ Page({
     this.setData({ showEmailDialog: true });
   },
 
-  // 原有方法：取消绑定邮箱
   cancelBindEmail() {
     this.setData({ showEmailDialog: false, email: "" });
   },
 
-  // 原有方法：绑定邮箱
   async bindEmail() {
     if (this.data.isTrialExpired) {
       return wx.showToast({ title: "试用已到期，请升级正式版", icon: "none" });
@@ -676,6 +804,12 @@ Page({
     try {
       const app = getApp();
       const { email } = this.data;
+      const targetOpenid = this.data.isChildMode
+        ? app.globalData.bindParentOpenid
+        : app.globalData.openid;
+
+      const hasPermission = await this.checkChildPermission(targetOpenid);
+      if (!hasPermission) return;
 
       if (!email.trim()) {
         return wx.showToast({ title: "请输入邮箱地址", icon: "none" });
@@ -695,7 +829,7 @@ Page({
       await emailsCol.add({
         data: {
           email: email.trim(),
-          openid: app.globalData.openid,
+          _openid: targetOpenid,
           createTime: db.serverDate(),
         },
       });
@@ -705,11 +839,14 @@ Page({
       this.checkUserEmail();
     } catch (err) {
       console.error("添加邮箱失败：", err);
-      wx.showToast({ title: "添加失败，请重试", icon: "none" });
+      if (err.errMsg.includes("permission denied")) {
+        wx.showToast({ title: "无权限添加父母邮箱", icon: "none" });
+      } else {
+        wx.showToast({ title: "添加失败，请重试", icon: "none" });
+      }
     }
   },
 
-  // 原有方法：删除邮箱
   async deleteEmail(e) {
     if (this.data.isTrialExpired) {
       return wx.showToast({ title: "试用已到期，请升级正式版", icon: "none" });
@@ -717,16 +854,25 @@ Page({
 
     try {
       const id = e.currentTarget.dataset.id;
+      const emailRes = await emailsCol.doc(id).get();
+      const targetOpenid = emailRes.data._openid;
+
+      const hasPermission = await this.checkChildPermission(targetOpenid);
+      if (!hasPermission) return;
+
       await emailsCol.doc(id).remove();
       wx.showToast({ title: "邮箱删除成功" });
       this.checkUserEmail();
     } catch (err) {
       console.error("删除邮箱失败：", err);
-      wx.showToast({ title: "删除失败，请重试", icon: "none" });
+      if (err.errMsg.includes("permission denied")) {
+        wx.showToast({ title: "无权限删除父母邮箱", icon: "none" });
+      } else {
+        wx.showToast({ title: "删除失败，请重试", icon: "none" });
+      }
     }
   },
 
-  // 原有方法：拨打电话
   callPhone(e) {
     const phone = e.currentTarget.dataset.phone;
     if (!phone) {
@@ -744,12 +890,10 @@ Page({
     });
   },
 
-  // 原有方法：姓名输入
   onUserNameInput(e) {
     this.setData({ userName: e.detail.value });
   },
 
-  // 原有方法：保存姓名
   async saveUserName() {
     if (this.data.isTrialExpired) {
       return wx.showToast({ title: "试用已到期，请升级正式版", icon: "none" });
@@ -758,14 +902,18 @@ Page({
     try {
       const app = getApp();
       const { userName } = this.data;
+      const targetOpenid = this.data.isChildMode
+        ? app.globalData.bindParentOpenid
+        : app.globalData.openid;
+
+      const hasPermission = await this.checkChildPermission(targetOpenid);
+      if (!hasPermission) return;
 
       if (!userName.trim()) {
         return wx.showToast({ title: "请输入姓名", icon: "none" });
       }
 
-      const res = await usersCol
-        .where({ _openid: app.globalData.openid })
-        .get();
+      const res = await usersCol.where({ _openid: targetOpenid }).get();
       if (res.data.length > 0) {
         await usersCol
           .doc(res.data[0]._id)
@@ -775,7 +923,7 @@ Page({
           data: {
             name: userName.trim(),
             createTime: db.serverDate(),
-            _openid: app.globalData.openid,
+            _openid: targetOpenid,
           },
         });
       }
@@ -783,11 +931,14 @@ Page({
       wx.showToast({ title: "姓名保存成功" });
     } catch (err) {
       console.error("保存备注失败：", err);
-      wx.showToast({ title: "保存失败，请重试", icon: "none" });
+      if (err.errMsg.includes("permission denied")) {
+        wx.showToast({ title: "无权限修改父母姓名", icon: "none" });
+      } else {
+        wx.showToast({ title: "保存失败，请重试", icon: "none" });
+      }
     }
   },
 
-  // 原有方法：设置家庭位置
   setHomeLocation() {
     if (this.data.isTrialExpired) {
       return wx.showToast({ title: "试用已到期，请升级正式版", icon: "none" });
@@ -802,10 +953,14 @@ Page({
         };
         try {
           const app = getApp();
-          const userRes = await usersCol
-            .where({ _openid: app.globalData.openid })
-            .get();
+          const targetOpenid = this.data.isChildMode
+            ? app.globalData.bindParentOpenid
+            : app.globalData.openid;
 
+          const hasPermission = await this.checkChildPermission(targetOpenid);
+          if (!hasPermission) return;
+
+          const userRes = await usersCol.where({ _openid: targetOpenid }).get();
           if (userRes.data.length > 0) {
             await usersCol
               .doc(userRes.data[0]._id)
@@ -815,7 +970,7 @@ Page({
               data: {
                 homeLocation,
                 createTime: db.serverDate(),
-                _openid: app.globalData.openid,
+                _openid: targetOpenid,
               },
             });
           }
@@ -824,7 +979,11 @@ Page({
           wx.showToast({ title: "家庭位置设置成功" });
         } catch (err) {
           console.error("保存位置失败：", err);
-          wx.showToast({ title: "设置失败，请重试", icon: "none" });
+          if (err.errMsg.includes("permission denied")) {
+            wx.showToast({ title: "无权限设置父母家庭位置", icon: "none" });
+          } else {
+            wx.showToast({ title: "设置失败，请重试", icon: "none" });
+          }
         }
       },
       fail: (err) => {
@@ -853,7 +1012,6 @@ Page({
     });
   },
 
-  // 原有方法：一键回家
   goHome() {
     if (this.data.isTrialExpired) {
       return wx.showToast({ title: "试用已到期，请升级正式版", icon: "none" });
@@ -878,7 +1036,6 @@ Page({
     });
   },
 
-  // 原有方法：发送定位
   sendLocation() {
     if (this.data.isTrialExpired) {
       return wx.showToast({ title: "试用已到期，请升级正式版", icon: "none" });
@@ -951,36 +1108,41 @@ Page({
     });
   },
 
-  // 原有方法：显示支付弹窗
   showPayDialog() {
     this.setData({ showPayDialog: true });
   },
 
-  // 原有方法：关闭支付弹窗
   closePayDialog() {
     this.setData({ showPayDialog: false });
   },
 
-  // 原有方法：选择支付类型
   async choosePayType(e) {
     const type = e.currentTarget.dataset.type;
-    const amount = type === "month" ? 3 : 20;
+    const amount = type === "month" ? 0.1 : 0.1;
+    const app = getApp();
 
+    const targetOpenid = this.data.isChildMode
+      ? app.globalData.bindParentOpenid
+      : app.globalData.openid;
     try {
       wx.showLoading({ title: "创建订单中..." });
-      const app = getApp();
       const res = await wx.cloud.callFunction({
         name: "createPayOrder",
-        data: { openid: app.globalData.openid, payType: type, amount },
+        data: {
+          openid: targetOpenid,
+          payType: type,
+          amount,
+          payerOpenid: app.globalData.openid,
+        },
       });
-      console.log("云函数返回：", res.result);
       wx.hideLoading();
+
       if (res.result?.success) {
         const payParams = res.result.payParams;
         wx.requestPayment({
           ...payParams,
           success: async () => {
-            await this.updateUserVersion(type);
+            await this.updateUserVersion(type, targetOpenid);
             const toastTitle = this.data.isFormalVersion
               ? "续费成功，服务已延长"
               : "升级成功，已开通正式版";
@@ -1014,14 +1176,11 @@ Page({
     }
   },
 
-  // 原有方法：更新用户版本
-  async updateUserVersion(payType) {
+  async updateUserVersion(payType, targetOpenid) {
     try {
       const app = getApp();
       const now = new Date();
-      const userRes = await usersCol
-        .where({ _openid: app.globalData.openid })
-        .get();
+      const userRes = await usersCol.where({ _openid: targetOpenid }).get();
 
       let currentServiceEnd;
       if (userRes.data.length > 0) {
@@ -1047,6 +1206,7 @@ Page({
         lastPayTime: db.serverDate(),
         trialExpired: false,
         isTrialExpired: false,
+        payerOpenid: app.globalData.openid,
       };
 
       if (userRes.data.length > 0) {
@@ -1054,7 +1214,7 @@ Page({
       } else {
         await usersCol.add({
           data: {
-            _openid: app.globalData.openid,
+            _openid: targetOpenid,
             ...updateData,
             createTime: db.serverDate(),
           },
@@ -1073,27 +1233,22 @@ Page({
     }
   },
 
-  // ========== 新增：父母/子女模式切换核心方法 ==========
-  // 1. 显示模式切换弹窗
   showModeSwitchSheet() {
     this.setData({ showModeSheet: true });
   },
 
-  // 2. 取消模式切换
   cancelModeSwitch() {
-    this.setData({ 
-      showModeSheet: false, 
+    this.setData({
+      showModeSheet: false,
       bindCode: "",
-      focusBindCode: false
+      focusBindCode: false,
     });
   },
 
-  // 3. 绑定码输入
   onBindCodeInput(e) {
     this.setData({ bindCode: e.detail.value });
   },
 
-  // 4. 输入框聚焦/失焦事件
   onBindCodeFocus() {
     this.setData({ focusBindCode: true });
   },
@@ -1109,9 +1264,6 @@ Page({
   onContactNameFocus() {
     this.setData({ focusContactName: true });
   },
-  onContactNameBlur() {
-    this.setData({ focusContactName: false });
-  },
   onContactPhoneFocus() {
     this.setData({ focusContactPhone: true });
   },
@@ -1125,187 +1277,145 @@ Page({
     this.setData({ focusEmail: false });
   },
 
-// 5. 确认模式切换（调用云函数版）
-confirmModeSwitch() {
-  const { isChildMode, bindCode } = this.data;
-  const app = getApp();
+  confirmModeSwitch() {
+    const { isChildMode, bindCode } = this.data;
+    const app = getApp();
 
-  this.setData({ showModeSheet: false });
+    this.setData({ showModeSheet: false });
 
-  if (!isChildMode) {
-    // 切换到子女模式：验证6位绑定码
-    if (!bindCode || bindCode.length !== 6) {
-      wx.showToast({ title: "请输入6位父母绑定码", icon: "none" });
+    if (!isChildMode) {
+      if (!bindCode || bindCode.length !== 6) {
+        wx.showToast({ title: "请输入6位父母绑定码", icon: "none" });
+        return;
+      }
+
+      wx.showLoading({ title: "验证中..." });
+
+      wx.cloud.callFunction({
+        name: "checkBindCode",
+        data: { bindCode },
+        success: async (res) => {
+          wx.hideLoading();
+          const result = res.result;
+          if (result.success) {
+            app.globalData.currentMode = "child";
+            app.globalData.bindParentOpenid = result.parentOpenid;
+            app.globalData.bindParentInfo = result.parentInfo;
+            // 写入缓存（关键：持久化子女模式）
+            wx.setStorageSync("currentMode", "child");
+            wx.setStorageSync("bindParentOpenid", result.parentOpenid);
+            wx.setStorageSync("bindParentInfo", result.parentInfo);
+
+            this.setData({
+              isChildMode: true,
+              bindParentInfo: result.parentInfo,
+            });
+
+            try {
+              await bindRelationsCol.doc(app.globalData.openid).set({
+                data: {
+                  parentOpenid: result.parentOpenid,
+                  bindCode: bindCode,
+                  createTime: db.serverDate(),
+                  updateTime: db.serverDate(),
+                },
+              });
+            } catch (bindErr) {
+              console.error("绑定关系写入失败：", bindErr);
+            }
+
+            this.getVersionInfo();
+            this.getContactsList();
+            this.checkUserEmail();
+            this.loadParentSignData();
+            this.loadTargetUserConfig();
+            wx.showToast({ title: "已切换至子女模式", icon: "success" });
+          } else {
+            wx.showToast({ title: result.errMsg, icon: "none" });
+          }
+        },
+        fail: (err) => {
+          wx.hideLoading();
+          console.error("调用云函数失败：", err);
+          wx.showToast({ title: "切换失败，请重试", icon: "none" });
+        },
+      });
+    } else {
+      app.globalData.currentMode = "parent";
+      app.globalData.bindParentOpenid = "";
+      app.globalData.bindParentInfo = null;
+      // 清空缓存（关键：持久化父母模式）
+      wx.setStorageSync("currentMode", "parent");
+      wx.setStorageSync("bindParentOpenid", "");
+      wx.setStorageSync("bindParentInfo", {});
+
+      this.setData({ isChildMode: false });
+      this.getVersionInfo();
+      this.getContactsList();
+      this.checkUserEmail();
+      this.checkSignStatus();
+      this.loadTargetUserConfig();
+      wx.showToast({ title: "已切换至父母模式", icon: "success" });
+    }
+  },
+
+  loadParentSignData() {
+    const { isChildMode } = this.data;
+    const app = getApp();
+    if (!isChildMode || !app.globalData.bindParentOpenid) {
       return;
     }
 
-    wx.showLoading({ title: "验证中..." });
+    const today = new Date();
+    const start = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate(),
+    ).getTime();
+    const end = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate() + 1,
+    ).getTime();
 
-    // 调用云函数验证绑定码
-    wx.cloud.callFunction({
-      name: 'checkBindCode',
-      data: { bindCode },
-      success: (res) => {
-        wx.hideLoading();
-        const result = res.result;
-        if (result.success) {
-          console.log("验证成功---：", result);
-          // 验证成功，切换模式
-          app.globalData.currentMode = "child";
-          app.globalData.bindParentOpenid = result.parentOpenid;
-          app.globalData.bindParentInfo = result.parentInfo;
-          this.setData({ 
-            isChildMode: true, 
-            bindParentInfo: result.parentInfo 
-          });
-          wx.showToast({ title: "已切换至子女模式", icon: "success" });
-          this.loadParentSignData();
-        } else {
-          wx.showToast({ title: result.errMsg, icon: "none" });
+    signCol
+      .where({
+        _openid: app.globalData.bindParentOpenid,
+        signTime: db.command.gte(start).and(db.command.lt(end)),
+      })
+      .get()
+      .then((res) => {
+        this.setData({ parentSignStatus: res.data.length > 0 });
+
+        const last7Days = [];
+        for (let i = 6; i >= 0; i--) {
+          const date = new Date();
+          date.setDate(today.getDate() - i);
+          last7Days.push(this.formatDate(date));
         }
-      },
-      fail: (err) => {
-        wx.hideLoading();
-        console.error("调用云函数失败：", err);
-        wx.showToast({ title: "切换失败，请重试", icon: "none" });
-      }
-    });
-  } else {
-    // 切换回父母模式（逻辑和原来一致）
-    app.globalData.currentMode = "parent";
-    app.globalData.bindParentOpenid = "";
-    app.globalData.bindParentInfo = null;
-    this.setData({ isChildMode: false });
-    wx.showToast({ title: "已切换至父母模式", icon: "success" });
-    this.checkSignStatus();
-  }
-},
 
-// 6. 加载父母签到数据
-// loadParentSignData() {
-//   const { isChildMode } = this.data;
-//   const app = getApp();
-//   // 非子女模式/未绑定父母openid，直接返回
-//   if (!isChildMode || !app.globalData.bindParentOpenid) {
-//     return;
-//   }
-
-//   // 打印关键参数用于调试
-//   console.log("【父母签到查询】绑定的openid：", app.globalData.bindParentOpenid);
-  
-//   // ========== 1. 计算今日时间区间（本地时间0点-24点） ==========
-//   const today = new Date();
-//   const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-//   const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).getTime();
-//   console.log("【父母签到查询】今日区间：", todayStart, "~", todayEnd);
-
-//   // ========== 2. 查询父母今日签到状态 ==========
-//   signCol.where({
-//     _openid: app.globalData.bindParentOpenid, // 统一用数据库里的 _openid 字段
-//     signTime: db.command.gte(todayStart).and(db.command.lt(todayEnd))
-//   }).get().then(todayRes => {
-//     const isTodaySigned = todayRes.data.length > 0;
-//     console.log("【父母签到查询】今日状态：", isTodaySigned, "，原始数据：", todayRes.data);
-//     this.setData({ parentSignStatus: isTodaySigned });
-
-//     // ========== 3. 计算最近7天日期 ==========
-//     const last7Days = [];
-//     for (let i = 6; i >= 0; i--) {
-//       const date = new Date();
-//       date.setDate(today.getDate() - i);
-//       last7Days.push(this.formatDate(date));
-//     }
-//     console.log("【父母签到查询】最近7天日期：", last7Days);
-
-//     // ========== 4. 批量查询7天签到历史 ==========
-//     const historyPromises = last7Days.map(dateStr => {
-//       const [year, month, day] = dateStr.split('-').map(Number);
-//       const dayStart = new Date(year, month - 1, day).getTime();
-//       const dayEnd = new Date(year, month - 1, day + 1).getTime();
-//       console.log(`【父母签到查询】${dateStr} 区间：`, dayStart, "~", dayEnd);
-      
-//       return signCol.where({
-//         _openid: app.globalData.bindParentOpenid,
-//         signTime: db.command.gte(dayStart).and(db.command.lt(dayEnd))
-//       }).get();
-//     });
-
-//     // ========== 5. 处理7天查询结果 ==========
-//     Promise.all(historyPromises).then(results => {
-//       const parentSignHistory = last7Days.map((date, index) => ({
-//         date,
-//         isSigned: results[index].data.length > 0
-//       }));
-//       console.log("【父母签到查询】7天历史：", parentSignHistory);
-//       this.setData({ parentSignHistory });
-//     });
-//   }).catch(err => {
-//     console.error("【父母签到查询】失败：", err);
-//     wx.showToast({ title: "加载父母签到数据失败", icon: "none" });
-//   });
-// },
-loadParentSignData() {
-  const { isChildMode } = this.data;
-  const app = getApp();
-  
-  // ========== 强制锁定正确的父母openid（测试用） ==========
-  const targetParentOpenid = "o55dP112xdklRsj-6_eVlSI3oD3Q";
-  app.globalData.bindParentOpenid = targetParentOpenid; // 强制赋值
-  
-  // 打印完整的全局数据，看是否有其他值干扰
-  console.log("【全局数据完整快照】", JSON.stringify(app.globalData));
-  
-  if (!isChildMode || !app.globalData.bindParentOpenid) {
-    return;
-  }
-
-  // 后续查询逻辑不变，但所有查询都用 targetParentOpenid 替代 app.globalData.bindParentOpenid
-  console.log("【父母签到查询】绑定的openid：", targetParentOpenid);
-  
-  const today = new Date();
-  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-  const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).getTime();
-  
-  // 查询时直接用锁定的 targetParentOpenid
-  // signCol.where({
-  //   _openid: targetParentOpenid, // 不再用 app.globalData.bindParentOpenid
-  //   signTime: db.command.gte(todayStart).and(db.command.lt(todayEnd))
-  // }).get().then(todayRes => {
-  //   console.log("【强制锁定openid查询结果】", todayRes.data);
-  //   // 后续逻辑不变
-  // });
-  signCol.where({
-  _openid: "o55dP112xdklRsj-6_eVlSI3oD3Q", // 直接写死，不依赖任何变量
-  signTime: db.command.gte(todayStart).and(db.command.lt(todayEnd))
-}).get().then(todayRes => {
-  console.log("【硬编码查询结果】", todayRes.data);
-}); 
-},
-
-// 辅助方法：确保日期格式化正确（补零）
-formatDate(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-},
-
-  // ========== 新增：提醒开关切换 ==========
-  onRemindSwitchChange(e) {
-    const enableRemind = e.detail.value;
-    const app = getApp();
-    usersCol.where({ _openid: app.globalData.openid }).get().then(res => {
-      if (res.data.length > 0) {
-        usersCol.doc(res.data[0]._id).update({
-          data: { enableRemind }
-        }).then(() => {
-          this.setData({ enableRemind });
-          wx.showToast({ title: enableRemind ? "已开启签到提醒" : "已关闭签到提醒" });
+        const historyPromises = last7Days.map((dateStr) => {
+          const [year, month, day] = dateStr.split("-").map(Number);
+          const dayStart = new Date(year, month - 1, day).getTime();
+          const dayEnd = new Date(year, month - 1, day + 1).getTime();
+          return signCol
+            .where({
+              _openid: app.globalData.bindParentOpenid,
+              signTime: db.command.gte(dayStart).and(db.command.lt(dayEnd)),
+            })
+            .get();
         });
-      }
-    }).catch(err => {
-      console.error("更新提醒开关失败：", err);
-      wx.showToast({ title: "设置失败", icon: "none" });
-    });
-  }
+
+        Promise.all(historyPromises).then((results) => {
+          const parentSignHistory = last7Days.map((date, index) => ({
+            date,
+            isSigned: results[index].data.length > 0,
+          }));
+          this.setData({ parentSignHistory });
+        });
+      })
+      .catch((err) => {
+        console.error("加载父母签到数据失败：", err);
+      });
+  },
 });

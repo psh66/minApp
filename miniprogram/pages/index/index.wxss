@@ -78,3 +78,19 @@ input:focus {
 .weather-tabs view:active {
   opacity: 0.9;
 }
+@keyframes scroll {
+  0% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+/* 可选：如果使用图标库，引入样式（根据你的图标库调整） */
+.iconfont {
+  font-family: "iconfont" !important;
+  font-style: normal;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
