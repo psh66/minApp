@@ -27,7 +27,7 @@ transporter.verify((error, success) => {
 
 exports.main = async (event, context) => {
   try {
-    console.log("===== 【函数启动】签到检查函数开始执行 =====");
+    console.log("===== 【函数启动】签到检查函数开始执行 =====\n");
     const now = new Date();
     console.log("【函数启动】当前时间：", now.toLocaleString());
 
@@ -35,7 +35,7 @@ exports.main = async (event, context) => {
     console.log("【步骤1】开始查询emails集合绑定的用户");
     const emailsRes = await db.collection("emails").get();
     if (emailsRes.data.length === 0) {
-      console.log("【步骤1】📭 无绑定邮箱的用户，直接返回");
+      console.log("【步骤1】📭 无绑定邮箱的用户，直接返回\n");
       return { success: true, msg: "无绑定邮箱的用户" };
     }
     console.log("【步骤1】✅ 查询到绑定邮箱的用户数：", emailsRes.data.length);
@@ -55,6 +55,7 @@ exports.main = async (event, context) => {
     console.log(
       "【步骤1】🗺️ 整理后的用户-邮箱映射：",
       JSON.stringify(userEmailMap),
+      "\n",
     );
 
     // 2. 遍历用户检查签到，计算实际未签到天数
@@ -138,13 +139,27 @@ exports.main = async (event, context) => {
       if (signRes.data.length === 0) {
         console.log("【天数计算】用户无签到记录，使用付费/服务开始时间计算");
         if (userData.lastPayTime) {
-          initTime = new Date(userData.lastPayTime);
+          // 修复：强制转换为数字，避免时间戳解析错误
+          initTime = new Date(Number(userData.lastPayTime));
+          // 校验日期有效性
+          if (isNaN(initTime.getTime())) {
+            console.log("【天数计算】⚠️ lastPayTime时间戳无效，使用当前时间");
+            initTime = now;
+          }
           console.log(
             "【天数计算】使用lastPayTime作为初始时间：",
             initTime.toLocaleString(),
           );
         } else if (userData.serviceStartTime) {
-          initTime = new Date(userData.serviceStartTime);
+          // 修复：强制转换为数字，避免时间戳解析错误
+          initTime = new Date(Number(userData.serviceStartTime));
+          // 校验日期有效性
+          if (isNaN(initTime.getTime())) {
+            console.log(
+              "【天数计算】⚠️ serviceStartTime时间戳无效，使用当前时间",
+            );
+            initTime = now;
+          }
           console.log(
             "【天数计算】使用serviceStartTime作为初始时间：",
             initTime.toLocaleString(),
@@ -155,7 +170,15 @@ exports.main = async (event, context) => {
           );
         }
       } else {
-        initTime = new Date(signRes.data[0].signTime);
+        // ========== 核心修复1：强制转换为数字，确保毫秒级时间戳正确解析 ==========
+        initTime = new Date(Number(signRes.data[0].signTime));
+        // ========== 核心修复2：新增时间戳有效性校验 ==========
+        if (isNaN(initTime.getTime())) {
+          console.log(
+            "【天数计算】⚠️ 签到时间戳无效，使用当前时间作为初始时间",
+          );
+          initTime = now;
+        }
         console.log(
           "【天数计算】用户最后签到时间：",
           initTime.toLocaleString(),
@@ -251,7 +274,7 @@ exports.main = async (event, context) => {
       console.log(`===== 【用户处理】结束处理用户 openid: ${openid} =====\n`);
     }
 
-    console.log("===== 【函数结束】签到检查函数执行完成 =====");
+    console.log("===== 【函数结束】签到检查函数执行完成 =====\n");
     return { success: true, msg: "函数执行完成" };
   } catch (err) {
     console.error("===== 【函数异常】❌ 函数执行失败 =====", err.message);
