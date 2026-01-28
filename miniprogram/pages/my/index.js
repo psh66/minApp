@@ -17,8 +17,9 @@ Page({
       homeLocation: null,
       enableRemind: true,
     },
-    careMode: false,
-    fontSizeMultiple: 1.0,
+    // 缓存优先初始化，避免首次渲染默认值闪烁
+    careMode: wx.getStorageSync("careMode") || false,
+    fontSizeMultiple: wx.getStorageSync("fontSizeMultiple") || 1.0,
     fontOptions: [
       { name: "1.1倍", value: 1.1 },
       { name: "1.2倍", value: 1.2 },
@@ -29,6 +30,7 @@ Page({
       { name: "1.8倍", value: 1.8 },
       { name: "2.0倍", value: 2.0 },
     ],
+    // 先设默认值，避免this初始化报错，onLoad中再动态赋值
     currentFontIndex: 0,
     isChildMode: false,
     showModeSwitchSheet: false,
@@ -51,11 +53,24 @@ Page({
       isChildMode: app.globalData.currentMode === "child",
       bindParentInfo: app.globalData.bindParentInfo || {},
     });
+
+    // 核心修复：动态初始化currentFontIndex（此时this已实例化，可正常访问data）
+    const cacheFont = wx.getStorageSync("fontSizeMultiple");
+    if (cacheFont) {
+      const fontIndex = this.data.fontOptions.findIndex(
+        (item) => item.value === cacheFont,
+      );
+      if (fontIndex >= 0) {
+        this.setData({ currentFontIndex: fontIndex });
+      }
+    }
+
     this.loadCareModeSetting();
     this.checkAdminPermission(); // 校验管理员权限
     this.loadAllUserData();
   },
-  // 新增：校验是否为管理员
+
+  // 校验是否为管理员
   async checkAdminPermission() {
     const app = getApp();
     const openid = app.globalData.openid;
@@ -68,10 +83,11 @@ Page({
     }
   },
 
-  // 新增：跳转后台设置页面
+  // 跳转后台设置页面
   navigateToAdmin() {
     wx.navigateTo({ url: "/pages/admin/index" });
   },
+
   // 权限校验通用方法
   async checkChildPermission(targetOpenid) {
     const app = getApp();
@@ -94,6 +110,8 @@ Page({
       return false;
     }
   },
+
+  // 优化版：仅差异化更新字体配置，避免重复setData导致闪烁
   loadCareModeSetting() {
     try {
       const app = getApp();
@@ -101,51 +119,41 @@ Page({
         ? app.globalData.bindParentOpenid
         : app.globalData.openid;
 
-      // 第一步：先从缓存读取，优先展示
-      const careMode = wx.getStorageSync("careMode") || false;
-      let fontSizeMultiple = wx.getStorageSync("fontSizeMultiple") || 1.1;
-      fontSizeMultiple = Math.max(1.1, Math.min(2.0, fontSizeMultiple));
-      const currentFontIndex =
-        this.data.fontOptions.findIndex(
-          (item) => item.value === fontSizeMultiple,
-        ) || 0;
+      // 已从data初始值读取缓存，无需重复设置初始状态
+      const currentCareMode = this.data.careMode;
+      const currentFontSize = this.data.fontSizeMultiple;
 
-      // 强制设置初始状态（不管有没有绑定父母账号）
-      this.setData(
-        {
-          careMode: careMode,
-          fontSizeMultiple: fontSizeMultiple,
-          currentFontIndex: currentFontIndex,
-        },
-        () => {
-          console.log("初始化careMode：", this.data.careMode); // 新增日志
-        },
-      );
-
-      // 如果是子女模式且无父母openid，直接返回
+      // 子女模式无父母openid，直接返回
       if (this.data.isChildMode && !targetOpenid) {
         return;
       }
 
-      // 第二步：从数据库读取，覆盖初始状态（异步不影响渲染）
+      // 仅数据库配置与当前状态不一致时，才更新页面+缓存
       usersCol
         .where({ _openid: targetOpenid })
         .get()
         .then((res) => {
           if (res.data.length > 0) {
             const dbCareMode = res.data[0].careMode || false;
-            const dbFontSize = res.data[0].fontSizeMultiple || 1.1;
+            const dbFontSize = res.data[0].fontSizeMultiple || 1.0;
             const dbFontIndex =
               this.data.fontOptions.findIndex(
                 (item) => item.value === dbFontSize,
               ) || 0;
-            this.setData({
-              careMode: dbCareMode,
-              fontSizeMultiple: dbFontSize,
-              currentFontIndex: dbFontIndex,
-            });
-            wx.setStorageSync("careMode", dbCareMode);
-            wx.setStorageSync("fontSizeMultiple", dbFontSize);
+
+            if (
+              dbCareMode !== currentCareMode ||
+              dbFontSize !== currentFontSize
+            ) {
+              this.setData({
+                careMode: dbCareMode,
+                fontSizeMultiple: dbFontSize,
+                currentFontIndex: dbFontIndex,
+              });
+              // 同步更新本地缓存，保证下次启动一致
+              wx.setStorageSync("careMode", dbCareMode);
+              wx.setStorageSync("fontSizeMultiple", dbFontSize);
+            }
           }
         })
         .catch((err) => {
@@ -153,24 +161,28 @@ Page({
         });
     } catch (err) {
       console.error("读取关怀模式设置失败：", err);
-      // 兜底：强制设置默认值
-      this.setData({
-        careMode: false,
-        fontSizeMultiple: 1.1,
-        currentFontIndex: 0,
-      });
+      // 兜底仅缓存无数据时执行，避免覆盖已有配置
+      if (!wx.getStorageSync("careMode")) {
+        this.setData({
+          careMode: false,
+          fontSizeMultiple: 1.0,
+          currentFontIndex: 0,
+        });
+      }
     }
   },
 
+  // 关怀模式开关：关闭时强制还原1.0倍字体，无歧义
   onCareModeSwitchChange(e) {
     const careMode = e.detail.value;
     console.log("开关点击后的值：", careMode);
 
-    // 修复：先安全获取当前字体配置，避免 undefined
+    // 安全获取当前字体配置，避免undefined
     const currentFontIndex = this.data.currentFontIndex || 0;
     const currentFont = this.data.fontOptions[currentFontIndex] || {
       value: 1.1,
     };
+    // 关闭关怀模式强制1.0倍，开启则使用选中的字体倍数
     const fontSizeMultiple = careMode ? currentFont.value : 1.0;
 
     const app = getApp();
@@ -178,6 +190,7 @@ Page({
       ? app.globalData.bindParentOpenid
       : app.globalData.openid;
 
+    // 先更新缓存，保证页面刷新后状态一致
     wx.setStorageSync("careMode", careMode);
     wx.setStorageSync("fontSizeMultiple", fontSizeMultiple);
 
@@ -189,6 +202,7 @@ Page({
       },
       () => {
         console.log("setData后的careMode：", this.data.careMode);
+        // 有目标openid时，同步更新数据库
         if (targetOpenid) {
           usersCol
             .where({ _openid: targetOpenid })
@@ -220,6 +234,7 @@ Page({
     });
   },
 
+  // 字体大小选择：同步更新页面、缓存、数据库
   onFontChange(e) {
     const index = e.detail.value;
     const selectedFont = this.data.fontOptions[index];
@@ -228,12 +243,15 @@ Page({
       ? app.globalData.bindParentOpenid
       : app.globalData.openid;
 
+    // 先更新页面状态
     this.setData({
       currentFontIndex: index,
       fontSizeMultiple: selectedFont.value,
     });
+    // 同步更新缓存
     wx.setStorageSync("fontSizeMultiple", selectedFont.value);
 
+    // 有目标openid时，更新数据库
     if (targetOpenid) {
       usersCol
         .where({ _openid: targetOpenid })
@@ -255,6 +273,7 @@ Page({
     }
   },
 
+  // 加载用户/父母版本、试用、提醒等所有数据
   async loadAllUserData() {
     try {
       const app = getApp();
@@ -343,6 +362,7 @@ Page({
             userInfo: userInfo,
           });
 
+          // 试用到期弹窗提醒
           if (isTrialExpired) {
             wx.showModal({
               title: "试用已到期",
@@ -352,6 +372,7 @@ Page({
             });
           }
         } else {
+          // 新用户初始化试用数据
           const now = new Date();
           const trialEndTime = new Date(now);
           trialEndTime.setDate(trialEndTime.getDate() + 3);
@@ -371,6 +392,7 @@ Page({
     }
   },
 
+  // 日期格式化：YYYY-MM-DD
   formatDate(date) {
     date = new Date(date);
     const year = date.getFullYear();
@@ -379,7 +401,7 @@ Page({
     return `${year}-${month}-${day}`;
   },
 
-  // 邮件提醒开关：控制目标用户（父母/自己）
+  // 邮件提醒开关：区分父母/自己模式，校验子女操作权限
   async onRemindSwitchChange(e) {
     const enableRemind = e.detail.value;
     const app = getApp();
@@ -387,6 +409,7 @@ Page({
       ? app.globalData.bindParentOpenid
       : app.globalData.openid;
 
+    // 子女模式校验操作权限
     const hasPermission = await this.checkChildPermission(targetOpenid);
     if (!hasPermission) return;
 
@@ -404,7 +427,7 @@ Page({
         });
       }
 
-      // 同步页面状态
+      // 同步页面状态，区分父母/自己模式
       this.setData({
         "userInfo.enableRemind": !this.data.isChildMode
           ? enableRemind
@@ -420,9 +443,12 @@ Page({
     }
   },
 
+  // 显示自己的支付弹窗
   showPayDialog() {
     this.setData({ showPayDialog: true, isParentPay: false });
   },
+
+  // 显示为父母支付的弹窗
   showParentPayDialog() {
     const app = getApp();
     if (!app.globalData.bindParentOpenid) {
@@ -430,13 +456,16 @@ Page({
     }
     this.setData({ showPayDialog: true, isParentPay: true });
   },
+
+  // 关闭支付弹窗
   closePayDialog() {
     this.setData({ showPayDialog: false, isParentPay: false });
   },
 
+  // 选择支付类型（月付/年付），发起支付
   async choosePayType(e) {
     const type = e.currentTarget.dataset.type;
-    const amount = type === "month" ? 3 : 20;
+    const amount = type === "month" ? 3 : 20; // 测试金额，可根据实际修改
     const app = getApp();
     const payOpenid = this.data.isParentPay
       ? app.globalData.bindParentOpenid
@@ -444,6 +473,7 @@ Page({
 
     try {
       wx.showLoading({ title: "创建订单中..." });
+      // 调用云函数创建支付订单
       const res = await wx.cloud.callFunction({
         name: "createPayOrder",
         data: {
@@ -457,9 +487,11 @@ Page({
 
       if (res.result?.success) {
         const payParams = res.result.payParams;
+        // 发起微信支付
         wx.requestPayment({
           ...payParams,
           success: async () => {
+            // 支付成功，更新版本状态
             if (this.data.isParentPay) {
               await this.updateParentVersion(type, payOpenid);
               wx.showToast({ title: "为父母升级/续费成功" });
@@ -471,7 +503,7 @@ Page({
               wx.showToast({ title: toastTitle });
             }
             this.closePayDialog();
-            this.loadAllUserData();
+            this.loadAllUserData(); // 重新加载数据，更新页面状态
           },
           fail: (payErr) => {
             console.error("支付请求失败：", payErr);
@@ -496,7 +528,8 @@ Page({
       wx.showToast({ title: "支付异常，请重试", icon: "none" });
     }
   },
-  // 更新自己的版本状态
+
+  // 更新自己的版本状态（正式版/续费）
   async updateUserVersion(payType) {
     try {
       const app = getApp();
@@ -505,6 +538,7 @@ Page({
         .where({ _openid: app.globalData.openid })
         .get();
 
+      // 计算当前服务结束时间，试用到期则从当前时间开始
       let currentServiceEnd = now;
       if (userRes.data.length > 0) {
         const userData = userRes.data[0];
@@ -512,7 +546,7 @@ Page({
         currentServiceEnd = this.data.isTrialExpired ? now : trialEndTime;
       }
 
-      // 计算新的结束时间
+      // 计算新的服务结束时间
       let serviceEndTime = new Date(currentServiceEnd);
       if (payType === "month") {
         serviceEndTime.setDate(serviceEndTime.getDate() + 30);
@@ -529,6 +563,7 @@ Page({
         trialExpired: false,
       };
 
+      // 更新/新增用户数据
       if (userRes.data.length > 0) {
         await usersCol.doc(userRes.data[0]._id).update({ data: updateData });
       } else {
@@ -546,12 +581,13 @@ Page({
     }
   },
 
-  // 更新父母的版本状态
+  // 更新父母的版本状态（正式版/续费）
   async updateParentVersion(payType, parentOpenid) {
     try {
       const now = new Date();
       const userRes = await usersCol.where({ _openid: parentOpenid }).get();
 
+      // 计算父母当前服务结束时间
       let currentServiceEnd = now;
       if (userRes.data.length > 0) {
         const userData = userRes.data[0];
@@ -559,6 +595,7 @@ Page({
         currentServiceEnd = new Date() > trialEndTime ? now : trialEndTime;
       }
 
+      // 计算新的服务结束时间
       let serviceEndTime = new Date(currentServiceEnd);
       if (payType === "month") {
         serviceEndTime.setDate(serviceEndTime.getDate() + 30);
@@ -575,6 +612,7 @@ Page({
         trialExpired: false,
       };
 
+      // 更新/新增父母数据
       if (userRes.data.length > 0) {
         await usersCol.doc(userRes.data[0]._id).update({ data: updateData });
       } else {
@@ -592,7 +630,7 @@ Page({
     }
   },
 
-  // 优化：生成新绑定码时覆盖旧码（旧码对新用户失效，已绑定子女仍可用）
+  // 生成绑定码：父母模式专属，新码覆盖旧码（旧码失效）
   generateBindCode() {
     if (this.data.isChildMode) {
       wx.showToast({ title: "子女模式无法生成绑定码", icon: "none" });
@@ -609,7 +647,7 @@ Page({
           const newBindCode = res.result.bindCode;
           const app = getApp();
 
-          // 关键：用新码覆盖父母账号的旧码，使旧码失效
+          // 新码覆盖旧码，使旧码对新用户失效
           usersCol
             .where({ _openid: app.globalData.openid })
             .get()
@@ -624,6 +662,7 @@ Page({
               }
             });
 
+          // 显示绑定码，支持复制
           wx.showModal({
             title: "绑定码生成成功",
             content: `新绑定码：【${newBindCode}】\n旧绑定码已失效，已绑定的子女可正常使用\n点击“复制”即可复制到剪贴板`,
@@ -662,21 +701,27 @@ Page({
     });
   },
 
+  // 复制绑定码
   copyBindCode(e) {
     const bindCode = e.currentTarget.dataset.code;
+    wx.setStorageSync("bindCode", bindCode);
     wx.setClipboardData({
       data: bindCode,
       success: () => wx.showToast({ title: "绑定码已复制", icon: "success" }),
     });
   },
 
+  // 显示关于弹窗
   showAboutDialog() {
     this.setData({ showAboutDialog: true });
   },
+
+  // 关闭关于弹窗
   closeAboutDialog() {
     this.setData({ showAboutDialog: false });
   },
 
+  // 分享给朋友
   onShareAppMessage() {
     return {
       title: "咱爸咱妈平安签，守护家人安全",
@@ -684,6 +729,8 @@ Page({
       imageUrl: "../../images/001.jpg",
     };
   },
+
+  // 分享到朋友圈
   onShareTimeline() {
     return {
       title: "咱爸咱妈平安签，守护家人安全",
@@ -691,31 +738,37 @@ Page({
     };
   },
 
+  // 页面显示时：更新模式状态+加载用户数据，移除重复字体加载（避免闪烁）
   onShow() {
     const app = getApp();
     this.setData({
       isChildMode: app.globalData.currentMode === "child",
       bindParentInfo: app.globalData.bindParentInfo || {},
     });
-    this.loadAllUserData();
-    this.loadCareModeSetting();
+    this.loadAllUserData(); // 仅加载用户数据，无需重复加载字体配置
   },
 
+  // 显示模式切换底部弹窗
   showModeSwitchSheet() {
     this.setData({ showModeSwitchSheet: true });
   },
+
+  // 取消模式切换
   cancelModeSwitch() {
     this.setData({ showModeSwitchSheet: false, bindCode: "" });
   },
+
+  // 绑定码输入框变化
   onBindCodeInput(e) {
     this.setData({ bindCode: e.detail.value });
   },
 
-  // 模式切换：补充缓存持久化，刷新不重置
+  // 确认模式切换：父母→子女（需绑定码）/子女→父母（清空绑定）
   confirmModeSwitch() {
     const { isChildMode, bindCode } = this.data;
     const app = getApp();
 
+    // 父母模式切子女模式：校验绑定码
     if (!isChildMode) {
       if (!bindCode || bindCode.length !== 6) {
         wx.showToast({ title: "请输入6位父母绑定码", icon: "none" });
@@ -730,7 +783,7 @@ Page({
             return;
           }
           const parentOpenid = res.data[0]._openid;
-          // 更新全局状态 + 本地缓存（持久化）
+          // 更新全局状态+本地缓存，持久化模式
           app.globalData.currentMode = "child";
           app.globalData.bindParentOpenid = parentOpenid;
           app.globalData.bindParentInfo = res.data[0];
@@ -744,14 +797,14 @@ Page({
             bindParentInfo: res.data[0],
           });
           wx.showToast({ title: "已切换至子女模式" });
-          this.loadAllUserData();
+          this.loadAllUserData(); // 重新加载父母数据
         })
         .catch((err) => {
           console.error("验证绑定码失败：", err);
           wx.showToast({ title: "切换失败", icon: "none" });
         });
     } else {
-      // 子女切父母：清空全局状态 + 缓存
+      // 子女模式切父母模式：清空全局+缓存状态
       app.globalData.currentMode = "parent";
       app.globalData.bindParentOpenid = "";
       app.globalData.bindParentInfo = {};
@@ -774,7 +827,7 @@ Page({
         },
       });
       wx.showToast({ title: "已切换至父母模式" });
-      this.loadAllUserData();
+      this.loadAllUserData(); // 重新加载自己的数据
     }
   },
 });

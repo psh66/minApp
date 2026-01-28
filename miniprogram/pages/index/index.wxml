@@ -19,11 +19,6 @@
     </button>
   </view>
 
-  <!-- 子女模式顶部提示 -->
-  <view wx:if="{{isChildMode}}" style="background: #fff8e1; border-radius: 12rpx; padding: 15rpx; margin-bottom: 25rpx; text-align: center;">
-    <text style="font-size: {{26 * fontSizeMultiple}}rpx; color: #ff7d00;">当前为子女模式，可管理父母账号+查看签到记录</text>
-  </view>
-
   <!-- 今日签到（仅父母模式显示） -->
   <view wx:if="{{!isChildMode}}" style="margin-bottom: 25rpx;">
     <view style="font-size: {{32 * fontSizeMultiple}}rpx; color: #333; margin-bottom: 10rpx;">今日签到</view>
@@ -81,25 +76,6 @@
       <button bindtap="openWeatherDetail" style="background: #1890ff; color: white; border: none; padding: 12rpx 20rpx; border-radius: 8rpx; font-size: {{22 * fontSizeMultiple}}rpx; width: 160rpx;">查看详情</button>
     </view>
   </view>
-
-  <!-- 版本信息（双方模式均显示，子女可代付费） -->
-  <view style="margin-bottom: 25rpx;">
-    <view style="font-size: {{32 * fontSizeMultiple}}rpx; color: #333; margin-bottom: 10rpx;">
-      {{isChildMode ? '父母版本信息' : '我的版本'}}
-    </view>
-    <view style="background: white; border-radius: 12rpx; padding: 12rpx; display: flex; align-items: center; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
-      <view style="flex: 1; font-size: {{30 * fontSizeMultiple}}rpx; color: #333; font-weight: 500;">
-        {{isFormalVersion ? '正式版' : '试用版'}}
-      </view>
-      <button bindtap="showPayDialog" style="width: 180rpx; background: {{isTrialExpired ? '#ff7d00' : (isFormalVersion ? '#1890ff' : '#ff7d00')}}; color: white; border: none; padding: 12rpx 0; border-radius: 12rpx; font-size: {{26 * fontSizeMultiple}}rpx; box-shadow: 0 4rpx 8rpx {{isTrialExpired ? 'rgba(255, 125, 0, 0.3)' : (isFormalVersion ? 'rgba(24, 144, 255, 0.3)' : 'rgba(255, 125, 0, 0.3)')}};">
-        {{isFormalVersion ? '续费' : '升级'}}
-      </button>
-    </view>
-    <view style="margin-top: 10rpx; font-size: {{24 * fontSizeMultiple}}rpx; color: #666; text-align: right;">
-      服务有效期：{{serviceStartTime}} - {{serviceEndTime}}
-    </view>
-  </view>
-
   <!-- 备注与家庭位置（子女可管理） -->
   <view style="margin-bottom: 25rpx;">
     <view style="font-size: {{32 * fontSizeMultiple}}rpx; color: #333; margin-bottom: 10rpx;">

@@ -210,6 +210,7 @@ Page({
     this.getContactsList();
     this.checkUserEmail();
     this.loadTargetUserConfig(); // 刷新同步配置
+    this.loadNoticeConfig(); // 加载通知配置
   },
   // 新增：加载后台通知配置
   async loadNoticeConfig() {
@@ -249,7 +250,7 @@ Page({
       const today = this.formatDate(new Date());
       const cacheInfo = wx.getStorageSync("weatherCacheInfo") || {};
       const { cacheDate, weatherData, cacheLat, cacheLon } = cacheInfo;
-
+      console.log("cacheInfo", cacheInfo);
       let locationRes;
       try {
         locationRes = await new Promise((resolve, reject) => {
@@ -280,7 +281,7 @@ Page({
         );
         isCacheValid = distance < DISTANCE_THRESHOLD;
       }
-
+      console.log("isCacheValid", isCacheValid);
       if (isCacheValid) {
         this.setData({
           todayWeather: weatherData.todayWeather,
@@ -343,7 +344,7 @@ Page({
         console.error("[天气模块] 接口状态码错误：", weatherRes.statusCode);
         return;
       }
-
+      console.log("[天气模块] 天气数据：", weatherRes.data);
       const { code, daily } = weatherRes.data;
       switch (code) {
         case "200":
@@ -1118,7 +1119,7 @@ Page({
 
   async choosePayType(e) {
     const type = e.currentTarget.dataset.type;
-    const amount = type === "month" ? 0.1 : 0.1;
+    const amount = type === "month" ? 3 : 20;
     const app = getApp();
 
     const targetOpenid = this.data.isChildMode
