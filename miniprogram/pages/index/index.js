@@ -619,35 +619,45 @@ Page({
     }
   },
 
-  async handleSign() {
-    if (this.data.isChildMode) {
-      wx.showToast({ title: "子女模式下无法签到", icon: "none" });
-      return;
-    }
-    if (this.data.isTrialExpired) {
-      return wx.showToast({ title: "试用已到期，请升级正式版", icon: "none" });
-    }
-    if (this.data.isSigned) {
-      return wx.showToast({ title: "今日已签到", icon: "none" });
-    }
+ async handleSign() {
+  if (this.data.isChildMode) {
+    wx.showToast({ title: "子女模式下无法签到", icon: "none" });
+    return;
+  }
+  if (this.data.isTrialExpired) {
+    return wx.showToast({ title: "试用已到期，请升级正式版", icon: "none" });
+  }
+  if (this.data.isSigned) {
+    return wx.showToast({ title: "今日已签到", icon: "none" });
+  }
 
-    try {
-      const app = getApp();
-      await signCol.add({
-        data: {
-          _openid: app.globalData.openid,
-          signTime: new Date().getTime(),
-          createTime: db.serverDate(),
-        },
-      });
-      this.setData({ isSigned: true });
-      wx.setStorageSync("isSignedToday", true);
-      wx.showToast({ title: "签到成功" });
-    } catch (err) {
-      console.error("签到失败：", err);
-      wx.showToast({ title: "签到失败，请重试", icon: "none" });
-    }
-  },
+  try {
+    const app = getApp();
+    // 1. 写入签到记录（原有逻辑，无问题）
+    await signCol.add({
+      data: {
+        _openid: app.globalData.openid,
+        signTime: new Date().getTime(), // 签到时间字段，数字型时间戳
+        createTime: db.serverDate(),
+      },
+    });
+    // ========== 新增核心逻辑：重置lastRemindDays为0 ==========
+    await db.collection("users").where({
+      _openid: app.globalData.openid // 根据openid匹配当前用户
+    }).update({
+      data: {
+        lastRemindDays: 0 // 签到成功，清空旧的提醒天数
+      }
+    });
+    // ==========================================================
+    this.setData({ isSigned: true });
+    wx.setStorageSync("isSignedToday", true);
+    wx.showToast({ title: "签到成功" });
+  } catch (err) {
+    console.error("签到失败：", err);
+    wx.showToast({ title: "签到失败，请重试", icon: "none" });
+  }
+},
 
   async getContactsList() {
     const app = getApp();
