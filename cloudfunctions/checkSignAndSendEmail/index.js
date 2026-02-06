@@ -78,40 +78,46 @@ exports.main = async (event, context) => {
       const userData = userRes.data.length > 0 ? userRes.data[0] : {};
       console.log("【用户信息】✅ 查询到用户数据：", JSON.stringify(userData));
 
-      // ========== 修复：强化服务到期判断（核心改动） ==========
-      // 新增：兜底判断 - 只要是试用到期/服务到期，直接跳过
+      // ========== 核心修复：兼容所有格式的serviceEndTime解析 ==========
       let isExpired = false;
-      // 判断1：有serviceEndTime且解析有效
       if (userData.serviceEndTime) {
-        const serviceEndTime = new Date(userData.serviceEndTime);
-        // 校验日期是否有效
+        let serviceEndTime;
+        // 兼容数字时间戳、日期字符串、年-月-日等所有格式
+        if (typeof userData.serviceEndTime === "number") {
+          serviceEndTime = new Date(userData.serviceEndTime);
+        } else {
+          // 字符串格式直接解析，自动兼容2034-09-04、2034-09-04T00:00:00等
+          serviceEndTime = new Date(userData.serviceEndTime);
+        }
+        // 校验解析结果是否有效
         if (!isNaN(serviceEndTime.getTime())) {
           isExpired = serviceEndTime < now;
+          console.log(
+            "【服务状态】📅 解析到有效到期时间：",
+            serviceEndTime.toLocaleString(),
+          );
+          console.log(
+            "【服务状态】⏰ 到期时间是否早于当前：",
+            isExpired ? "是" : "否",
+          );
         } else {
           console.log("【服务状态】🚫 serviceEndTime格式无效，判定为到期");
-          isExpired = true; // 格式无效直接判定为到期
+          isExpired = true;
         }
-      }
-      // 判断2：有isTrialExpired字段且为true（前端同步的到期标识）
-      else if (userData.isTrialExpired === true) {
+      } else if (userData.isTrialExpired === true) {
         console.log("【服务状态】🚫 isTrialExpired为true，判定为到期");
         isExpired = true;
-      }
-      // 判断3：无服务到期时间，直接判定为到期
-      else {
+      } else {
         console.log("【服务状态】🚫 无serviceEndTime，判定为到期");
         isExpired = true;
       }
-
-      // 最终判定：到期则跳过
       console.log("【服务状态】最终到期判定：", isExpired ? "是" : "否");
       if (isExpired) {
         console.log("【服务状态】🚫 服务到期，跳过发邮件");
         continue;
       }
-      // ========== 修复结束 ==========
 
-      // 关键判断2：提醒开关关闭 → 跳过（无字段视为开启）
+      // 提醒开关判断
       const enableRemind = userData.enableRemind ?? true;
       console.log(
         "【提醒开关】用户enableRemind字段值：",
@@ -123,85 +129,75 @@ exports.main = async (event, context) => {
         continue;
       }
 
-      // 查询最近一次签到记录
-      console.log("【签到记录】开始查询signRecords集合最近签到记录");
+      // ========== 强校验查询最新签到记录（核心）==========
+      console.log("【签到记录】开始查询signRecords近30天最新签到记录");
+      const thirtyDaysAgo = now.getTime() - 30 * 24 * 60 * 60 * 1000;
       const signRes = await db
         .collection("signRecords")
-        .where({ _openid: openid })
+        .where({
+          _openid: openid,
+          signTime: _.gte(thirtyDaysAgo),
+        })
         .orderBy("signTime", "desc")
         .limit(1)
         .get();
       console.log("【签到记录】查询结果：", JSON.stringify(signRes.data));
+      // 打印最新签到时间（若有）
+      if (signRes.data.length > 0) {
+        const latestSignTime = new Date(
+          Number(signRes.data[0].signTime),
+        ).toLocaleString();
+        console.log("【签到记录】✅ 最新签到时间：", latestSignTime);
+      }
 
-      // 计算实际未签到天数（适配lastPayTime/serviceStartTime）
+      // ========== 时间戳强制转换+有效性校验，计算真实未签到天数 ==========
       let actualDays = 0;
       let initTime = now;
       if (signRes.data.length === 0) {
-        console.log("【天数计算】用户无签到记录，使用付费/服务开始时间计算");
+        console.log("【天数计算】无近30天签到记录，使用付费/服务开始时间计算");
         if (userData.lastPayTime) {
-          // 修复：强制转换为数字，避免时间戳解析错误
-          initTime = new Date(Number(userData.lastPayTime));
-          // 校验日期有效性
+          initTime = new Date(
+            Number(userData.lastPayTime) || userData.lastPayTime,
+          );
           if (isNaN(initTime.getTime())) {
-            console.log("【天数计算】⚠️ lastPayTime时间戳无效，使用当前时间");
+            console.log("【天数计算】⚠️ lastPayTime无效，使用当前时间");
             initTime = now;
           }
-          console.log(
-            "【天数计算】使用lastPayTime作为初始时间：",
-            initTime.toLocaleString(),
-          );
         } else if (userData.serviceStartTime) {
-          // 修复：强制转换为数字，避免时间戳解析错误
-          initTime = new Date(Number(userData.serviceStartTime));
-          // 校验日期有效性
+          initTime = new Date(
+            Number(userData.serviceStartTime) || userData.serviceStartTime,
+          );
           if (isNaN(initTime.getTime())) {
-            console.log(
-              "【天数计算】⚠️ serviceStartTime时间戳无效，使用当前时间",
-            );
+            console.log("【天数计算】⚠️ serviceStartTime无效，使用当前时间");
             initTime = now;
           }
-          console.log(
-            "【天数计算】使用serviceStartTime作为初始时间：",
-            initTime.toLocaleString(),
-          );
-        } else {
-          console.log(
-            "【天数计算】无lastPayTime和serviceStartTime，使用当前时间作为初始时间",
-          );
         }
+        console.log("【天数计算】初始时间：", initTime.toLocaleString());
       } else {
-        // ========== 核心修复1：强制转换为数字，确保毫秒级时间戳正确解析 ==========
-        initTime = new Date(Number(signRes.data[0].signTime));
-        // ========== 核心修复2：新增时间戳有效性校验 ==========
-        if (isNaN(initTime.getTime())) {
-          console.log(
-            "【天数计算】⚠️ 签到时间戳无效，使用当前时间作为初始时间",
-          );
+        // 强制转换为数字型时间戳，避免字符串解析错误
+        const signTimeNum = Number(signRes.data[0].signTime);
+        initTime = new Date(signTimeNum);
+        // 校验签到时间有效性
+        if (isNaN(initTime.getTime()) || initTime > now) {
+          console.log("【天数计算】⚠️ 签到时间无效/晚于当前，使用当前时间");
           initTime = now;
         }
-        console.log(
-          "【天数计算】用户最后签到时间：",
-          initTime.toLocaleString(),
-        );
       }
-      // 计算天数差
+      // 计算真实天数差，向上取整
       const timeDiff = now - initTime;
       actualDays = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+      // 仅保证天数非负，无任何上限限制
+      actualDays = Math.max(0, actualDays);
       console.log("【天数计算】时间差(毫秒)：", timeDiff);
       console.log("【天数计算】✅ 实际未签到天数：", actualDays);
 
-      // ===== 关闭后重新打开适配 =====
+      // 开关切换适配：关闭后重新打开，重置lastRemindDays为0
       let lastRemindDays = userData.lastRemindDays || 0;
-      console.log(
-        "【历史记录】用户上次提醒天数lastRemindDays：",
-        lastRemindDays,
-      );
+      console.log("【历史记录】上次提醒天数lastRemindDays：", lastRemindDays);
       const wasRemindDisabled =
         userData.enableRemind === false && enableRemind === true;
       if (wasRemindDisabled) {
-        console.log(
-          "【开关切换】⚠️ 用户刚从关闭切换为开启，重置lastRemindDays为0",
-        );
+        console.log("【开关切换】⚠️ 开关从关闭切开启，重置lastRemindDays为0");
         await db
           .collection("users")
           .where({ _openid: openid })
@@ -209,67 +205,77 @@ exports.main = async (event, context) => {
             data: { lastRemindDays: 0 },
           });
         lastRemindDays = 0;
-        console.log("【开关切换】✅ lastRemindDays已重置为0");
+        console.log("【开关切换】✅ lastRemindDays已重置");
       }
 
-      // 发送条件校验
+      // ========== 最终发送条件：仅≥2天未签到时触发邮件+更新字段 ==========
       console.log(
         "【发送条件】校验：未签到天数≥2天？",
         actualDays >= 2 ? "是" : "否",
       );
-      console.log(
-        "【发送条件】校验：当前天数>上次提醒天数？",
-        actualDays > lastRemindDays ? "是" : "否",
-      );
-      if (actualDays >= 2 && actualDays > lastRemindDays) {
+      if (actualDays >= 2) {
+        // 新增：打印待发送邮件的用户完整列表信息（核心需求）
         console.log(
-          `【发送准备】⚠️ 满足所有条件，准备发送${actualDays}天未签到提醒邮件`,
+          "【待发送邮件用户】📧 信息汇总：",
+          JSON.stringify(
+            {
+              userOpenid: openid,
+              userName: userData.name || "未知用户",
+              unSignDays: actualDays,
+              bindEmails: emailList,
+              remindTime: now.toLocaleString(),
+            },
+            null,
+            2,
+          ),
+        );
+        console.log(
+          `【发送准备】⚠️ 满足条件，发送${actualDays}天未签到提醒邮件`,
         );
 
         // 获取用户和联系人信息
         const userName = userData.name || "用户";
-        console.log("【邮件内容】用户昵称：", userName);
-        console.log("【邮件内容】开始查询contacts集合联系人信息");
         const contactRes = await db
           .collection("contacts")
           .where({ _openid: openid })
           .get();
         const contactName =
           contactRes.data.length > 0 ? contactRes.data[0].name : "家人";
-        console.log("【邮件内容】联系人名称：", contactName);
+        console.log("【邮件内容】用户：", userName, "，联系人：", contactName);
 
-        // 发送邮件
+        // 发送邮件（标题/内容均显示实际未签到天数）
         try {
-          console.log("【邮件发送】开始发送邮件到：", emailList.join(","));
           await transporter.sendMail({
             from: '"咱爸咱妈平安签" <1476069379@qq.com>',
             to: emailList.join(","),
             subject: `紧急提醒：家人连续${actualDays}天未签到`,
             html: `
               <div style="font-size: 14px; line-height: 1.8;">
-                <p>尊敬的${contactName}：</p >
-                <p>您好！您的家人【${userName}】已连续${actualDays}天未使用「咱爸咱妈平安签」小程序签到，请您尽快联系确认情况。</p >
-                <p>若已确认安全，可忽略此提醒；若无法联系，请及时采取措施。</p >
-                <p style="margin-top: 20px;">「咱爸咱妈平安签」团队</p >
+                <p>尊敬的${contactName}：</p>
+                <p>您好！您的家人【${userName}】已连续${actualDays}天未使用「咱爸咱妈平安签」小程序签到，请您尽快联系确认情况。</p>
+                <p>若已确认家人安全，可忽略此提醒；若暂时无法联系，请及时采取必要措施。</p>
+                <p style="margin-top: 20px; color: #666;">「咱爸咱妈平安签」团队</p>
               </div>
             `,
           });
           console.log("【邮件发送】✅ 邮件发送成功！");
 
-          // 更新上次提醒天数（仅用于判断天数递增）
-          console.log("【记录更新】开始更新lastRemindDays为：", actualDays);
+          // 更新lastRemindDays为当前实际未签到天数，同步数据
           await db
             .collection("users")
             .where({ _openid: openid })
             .update({
               data: { lastRemindDays: actualDays },
             });
-          console.log("【记录更新】✅ lastRemindDays更新成功");
+          console.log(
+            "【记录更新】✅ lastRemindDays已更新为实际天数：",
+            actualDays,
+          );
         } catch (emailErr) {
           console.error("【邮件发送】❌ 邮件发送失败：", emailErr.message);
         }
       } else {
-        console.log("【发送条件】❌ 未满足发送条件，跳过发邮件");
+        console.log("【发送条件】❌ 未签到天数不足2天，跳过发邮件+更新字段");
       }
       console.log(`===== 【用户处理】结束处理用户 openid: ${openid} =====\n`);
     }
@@ -277,7 +283,7 @@ exports.main = async (event, context) => {
     console.log("===== 【函数结束】签到检查函数执行完成 =====\n");
     return { success: true, msg: "函数执行完成" };
   } catch (err) {
-    console.error("===== 【函数异常】❌ 函数执行失败 =====", err.message);
+    console.error("===== 【函数异常】❌ 执行失败 =====", err.message);
     console.error("【异常堆栈】", err.stack);
     return { success: false, msg: "执行失败", error: err.message };
   }
