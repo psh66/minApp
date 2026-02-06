@@ -64,4 +64,11 @@
       暂无符合条件的用户
     </view>
   </view>
+
+  <!-- 新增：团长提现审核入口（和原有样式统一） -->
+  <view style="background: white; border-radius: 16rpx; padding: 20rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
+    <button bindtap="goToWithdrawAudit" style="background: #ff7d00; color: white; border: none; border-radius: 8rpx; font-size: {{28 * fontSizeMultiple}}rpx; padding: 15rpx 0; width: 100%;">
+      💰 团长提现审核
+    </button>
+  </view>
 </view>

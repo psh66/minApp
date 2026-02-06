@@ -1,0 +1,80 @@
+<view class="container">
+  <!-- 头部收益概览 -->
+  <view class="header-card">
+    <view class="header-title">我的团长收益</view>
+    <view class="stats-row">
+      <view class="stat-item">
+        <view class="stat-label">待结算</view>
+        <view class="stat-value">¥{{pendingReward || 0}}</view>
+      </view>
+      <view class="stat-item">
+        <view class="stat-label">可提现</view>
+        <view class="stat-value highlight">¥{{withdrawAble || 0}}</view>
+      </view>
+      <view class="stat-item">
+        <view class="stat-label">总推广订单</view>
+        <view class="stat-value">{{totalOrder || 0}} 单</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 核心操作区 -->
+  <view class="action-card">
+    <button bindtap="copyLink" class="action-btn blue">🔗 复制推广链接</button>
+    <button bindtap="generatePoster" class="action-btn orange">🎨 生成推广海报</button>
+    <button bindtap="showWithdrawModal" class="action-btn green" disabled="{{withdrawAble < 1}}">💸 申请提现（满1元可提）</button>
+  </view>
+
+  <!-- 推广订单记录 -->
+  <view class="order-card">
+    <view class="card-title">推广订单记录</view>
+    <view wx:if="{{orderList.length === 0}}" class="empty-state">
+      <view class="empty-icon">📝</view>
+      <view class="empty-text">暂无推广订单</view>
+    </view>
+    <view wx:for="{{orderList}}" wx:key="_id" class="order-item">
+      <view class="order-info">
+        <view class="order-no">订单号：{{item.orderNo}}</view>
+        <view class="order-amount">¥{{item.amount}}</view>
+      </view>
+      <view class="order-time">{{item.createTime && item.createTime.toLocaleString()}}</view>
+    </view>
+  </view>
+
+  <!-- 提现记录 -->
+  <view class="withdraw-card">
+    <view class="card-title">提现记录</view>
+    <view wx:if="{{withdrawRecords.length === 0}}" class="empty-state">
+      <view class="empty-icon">💳</view>
+      <view class="empty-text">暂无提现记录</view>
+    </view>
+    <view wx:for="{{withdrawRecords}}" wx:key="_id" class="withdraw-item">
+      <view class="withdraw-info">
+        <view class="withdraw-amount">¥{{item.amount}}</view>
+        <view class="withdraw-status {{item.status}}">
+          {{item.status === 'pending' ? '审核中' : (item.status === 'success' ? '已打款' : '已驳回')}}
+        </view>
+      </view>
+      <view class="withdraw-time">{{item.createTime && item.createTime.toLocaleString()}}</view>
+    </view>
+  </view>
+
+  <!-- 提现申请弹窗 -->
+  <view class="modal" wx:if="{{showModal}}" bindtap="hideModal">
+    <view class="modal-content" catchtap="stopPropagation">
+      <view class="modal-title">申请提现</view>
+      <view class="form-group">
+        <view class="form-label">提现金额（元）</view>
+        <input type="number" placeholder="请输入提现金额" value="{{withdrawForm.amount}}" bindinput="onAmountInput" class="form-input" />
+      </view>
+      <view class="form-group">
+        <view class="form-label">微信收款码/微信号（必填）</view>
+        <input placeholder="请输入你的微信收款码或微信号" value="{{withdrawForm.payeeInfo}}" bindinput="onPayeeInfoInput" class="form-input" />
+      </view>
+      <view class="modal-actions">
+        <button bindtap="hideModal" class="modal-btn cancel">取消</button>
+        <button bindtap="applyWithdraw" class="modal-btn confirm">确认提交</button>
+      </view>
+    </view>
+  </view>
+</view>

@@ -1,8 +1,6 @@
-<!--pages/my/index.wxml-->
 <view class="container" style="padding: 20rpx; background: linear-gradient(to bottom, #f0f9ff, #ffffff); min-height: 100vh;">
   <!-- 头像+姓名+版本状态 -->
   <view style="background: white; border-radius: 16rpx; padding: 25rpx; margin-bottom: 25rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
-    <!-- 子女端展示：模式标识 + 绑定的父母信息 -->
     <view wx:if="{{isChildMode}}" style="display: flex; align-items: center; margin-bottom: 20rpx;">
       <view style="width: 100rpx; height: 100rpx; border-radius: 50%; background: linear-gradient(135deg, #ff7d00, #ff9f43); display: flex; align-items: center; justify-content: center; margin-right: 20rpx;">
         <text style="font-size: {{40 * fontSizeMultiple}}rpx; color: white; font-weight: bold;">子</text>
@@ -14,10 +12,10 @@
         </view>
         <view style="font-size: {{24 * fontSizeMultiple}}rpx; color: {{parentPayInfo.isTrialExpired ? '#ff4d4f' : '#666'}}; margin-top: 4rpx;">
           {{parentPayInfo.isTrialExpired ? '父母账号试用已到期' : (parentPayInfo.isFormalVersion ? '父母账号为正式会员' : '父母账号为试用会员（剩余' + parentPayInfo.remainingTrialDays + '天）')}}
+          <text style="color: #999; font-size: {{20 * fontSizeMultiple}}rpx;">【付费后概不退款】</text>
         </view>
       </view>
     </view>
-    <!-- 父母端原有展示 -->
     <view wx:else style="display: flex; align-items: center; margin-bottom: 20rpx;">
       <view style="width: 100rpx; height: 100rpx; border-radius: 50%; background: linear-gradient(135deg, #1890ff, #07c160); display: flex; align-items: center; justify-content: center; margin-right: 20rpx;">
         <text style="font-size: {{40 * fontSizeMultiple}}rpx; color: white; font-weight: bold;">{{(userInfo.name && userInfo.name.charAt(0)) || '福'}}</text>
@@ -26,11 +24,11 @@
         <view style="font-size: {{34 * fontSizeMultiple}}rpx; color: #333; font-weight: 500;">{{userInfo.name || '未设置昵称'}}</view>
         <view style="font-size: {{24 * fontSizeMultiple}}rpx; color: {{isTrialExpired ? '#ff4d4f' : '#666'}}; margin-top: 4rpx;">
           {{isTrialExpired ? '试用已到期' : (isFormalVersion ? '正式会员' : '试用会员（剩余' + remainingTrialDays + '天）')}}
+          <text style="color: #999; font-size: {{20 * fontSizeMultiple}}rpx;">【付费后概不退款】</text>
         </view>
       </view>
     </view>
 
-    <!-- 服务有效期：父母端显示自己的，子女端显示父母的 -->
     <view style="display: flex; justify-content: space-between; padding: 15rpx 0; border-top: 1px solid #f5f5f5;">
       <view style="font-size: {{26 * fontSizeMultiple}}rpx; color: #666;">服务有效期</view>
       <view style="font-size: {{26 * fontSizeMultiple}}rpx; color: {{isChildMode ? (parentPayInfo.isTrialExpired ? '#ff4d4f' : '#07c160') : (isTrialExpired ? '#ff4d4f' : '#07c160')}}; font-weight: 500;">
@@ -39,7 +37,6 @@
     </view>
   </view>
 
-  <!-- 生成子女绑定码：仅父母端显示 -->
   <view wx:if="{{!isChildMode}}" style="background: white; border-radius: 16rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05); margin-bottom: 25rpx; padding: 20rpx; position: relative;">
     <view style="font-size: {{30 * fontSizeMultiple}}rpx; color: #333;">生成子女绑定码</view>
     <button bindtap="generateBindCode" style="position: absolute; right: 20rpx; top: 50%; transform: translateY(-50%); background: #07c160; color: white; border: none; width: 120rpx; min-width: 80rpx; padding: 4rpx 0; border-radius: 8rpx; font-size: {{22 * fontSizeMultiple}}rpx; line-height: 1.2; text-align: center;">
@@ -47,9 +44,7 @@
     </button>
   </view>
 
-  <!-- 版本管理：子女端/父母端差异化 -->
   <view style="background: white; border-radius: 16rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05); margin-bottom: 25rpx;">
-    <!-- 子女端：为父母续费/升级 -->
     <view wx:if="{{isChildMode}}" bindtap="showParentPayDialog" style="padding: 20rpx; display: flex; justify-content: space-between; align-items: center;">
       <view style="font-size: {{30 * fontSizeMultiple}}rpx; color: #333;">为父母续费/升级</view>
       <view style="display: flex; align-items: center;">
@@ -57,7 +52,6 @@
         <view style="width: 16rpx; height: 16rpx; border-top: 2rpx solid #ff7d00; border-right: 2rpx solid #ff7d00; transform: rotate(45deg); margin-left: 10rpx;"></view>
       </view>
     </view>
-    <!-- 父母端：原有版本管理 -->
     <view wx:else bindtap="showPayDialog" style="padding: 20rpx; display: flex; justify-content: space-between; align-items: center;">
       <view style="font-size: {{30 * fontSizeMultiple}}rpx; color: #333;">版本管理</view>
       <view style="display: flex; align-items: center;">
@@ -70,41 +64,48 @@
     </view>
   </view>
 
-<!-- 关怀模式：子女模式下修改的是父母的关怀模式 -->
-<view style="background: white; border-radius: 16rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05); margin-bottom: 25rpx;">
-  <view style="padding: 20rpx; display: flex; justify-content: space-between; align-items: center;">
-    <view style="font-size: {{30 * fontSizeMultiple}}rpx; color: #333;">{{isChildMode ? '父母关怀模式' : '关怀模式'}}</view>
-    <switch checked="{{careMode || false}}" bindchange="onCareModeSwitchChange" style="transform: scale(0.9);"></switch>
-  </view>
-  
-  <!-- 终极修复：用 hidden 替代 wx:if，强制保留DOM，仅隐藏/显示 -->
-  <view hidden="{{!careMode}}" style="padding: 15rpx 20rpx; border-top: 1px solid #f5f5f5;">
-    <view style="font-size: {{26 * fontSizeMultiple}}rpx; color: #666; margin-bottom: 10rpx;">
-      字体大小：{{Math.round((fontSizeMultiple || 1) * 100)}}%
-    </view>
-    <picker mode="selector" range="{{fontOptions}}" range-key="name" value="{{currentFontIndex || 0}}" bindchange="onFontChange" style="width: 100%;">
-      <view style="border: 1px solid #1890ff; border-radius: 8rpx; padding: 15rpx; font-size: {{28 * fontSizeMultiple}}rpx; color: #1890ff; background: #f0f9ff;">
-        {{fontOptions[currentFontIndex || 0].name || '1.1倍'}}（当前）
+  <!-- 团长中心入口 ★修改为跳转到独立页面，删除原弹窗逻辑★ -->
+  <view wx:if="{{(isFormalVersion && !isChildMode) || (parentPayInfo.isFormalVersion && isChildMode)}}" style="background: white; border-radius: 16rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05); margin-bottom: 25rpx;">
+    <view bindtap="goToGroupLeader" style="padding: 20rpx; display: flex; justify-content: space-between; align-items: center;">
+      <view style="font-size: {{30 * fontSizeMultiple}}rpx; color: #333; display: flex; align-items: center;">
+        <text style="color: #ff7d00; margin-right: 10rpx;">💰</text>团长中心
       </view>
-    </picker>
-  </view>
-</view>
-
-<!-- 未签到提醒开关（子女/父母模式通用） -->
-<view style="margin-bottom: 25rpx;">
-  <view style="font-size: {{32 * fontSizeMultiple}}rpx; color: #333; margin-bottom: 10rpx;">
-    {{isChildMode ? '父母未签到提醒' : '未签到提醒'}}
-  </view>
-  <view style="background: white; border-radius: 12rpx; padding: 15rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
-    <view style="display: flex; justify-content: space-between; align-items: center;">
-      <view style="font-size: {{28 * fontSizeMultiple}}rpx; color: #333;">连续2天未签到发送邮箱提醒</view>
-      <!-- 开关状态绑定：子女模式取 parentPayInfo.enableRemind，父母模式取 userInfo.enableRemind -->
-      <switch checked="{{isChildMode ? parentPayInfo.enableRemind : userInfo.enableRemind}}" bindchange="onRemindSwitchChange" disabled="{{isTrialExpired && !isChildMode}}" style="transform: scale(1.1);"/>
+      <view style="display: flex; align-items: center;">
+        <view style="font-size: {{26 * fontSizeMultiple}}rpx; color: #ff7d00; margin-right: 10rpx;">可提现{{groupLeaderData.withdrawAble}}元</view>
+        <view style="width: 16rpx; height: 16rpx; border-top: 2rpx solid #ff7d00; border-right: 2rpx solid #ff7d00; transform: rotate(45deg);"></view>
+      </view>
     </view>
   </view>
-</view>
 
-  <!-- 关于我们+联系客服 -->
+  <view style="background: white; border-radius: 16rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05); margin-bottom: 25rpx;">
+    <view style="padding: 20rpx; display: flex; justify-content: space-between; align-items: center;">
+      <view style="font-size: {{30 * fontSizeMultiple}}rpx; color: #333;">{{isChildMode ? '父母关怀模式' : '关怀模式'}}</view>
+      <switch checked="{{careMode || false}}" bindchange="onCareModeSwitchChange" style="transform: scale(0.9);"></switch>
+    </view>
+    <view hidden="{{!careMode}}" style="padding: 15rpx 20rpx; border-top: 1px solid #f5f5f5;">
+      <view style="font-size: {{26 * fontSizeMultiple}}rpx; color: #666; margin-bottom: 10rpx;">
+        字体大小：{{Math.round((fontSizeMultiple || 1) * 100)}}%
+      </view>
+      <picker mode="selector" range="{{fontOptions}}" range-key="name" value="{{currentFontIndex || 0}}" bindchange="onFontChange" style="width: 100%;">
+        <view style="border: 1px solid #1890ff; border-radius: 8rpx; padding: 15rpx; font-size: {{28 * fontSizeMultiple}}rpx; color: #1890ff; background: #f0f9ff;">
+          {{fontOptions[currentFontIndex || 0].name || '1.1倍'}}（当前）
+        </view>
+      </picker>
+    </view>
+  </view>
+
+  <view style="margin-bottom: 25rpx;">
+    <view style="font-size: {{32 * fontSizeMultiple}}rpx; color: #333; margin-bottom: 10rpx;">
+      {{isChildMode ? '父母未签到提醒' : '未签到提醒'}}
+    </view>
+    <view style="background: white; border-radius: 12rpx; padding: 15rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
+      <view style="display: flex; justify-content: space-between; align-items: center;">
+        <view style="font-size: {{28 * fontSizeMultiple}}rpx; color: #333;">连续2天未签到发送邮箱提醒</view>
+        <switch checked="{{isChildMode ? parentPayInfo.enableRemind : userInfo.enableRemind}}" bindchange="onRemindSwitchChange" disabled="{{isTrialExpired && !isChildMode}}" style="transform: scale(1.1);"/>
+      </view>
+    </view>
+  </view>
+
   <view style="background: white; border-radius: 16rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05); margin-bottom: 25rpx;">
     <view bindtap="showAboutDialog" style="padding: 20rpx; border-bottom: 1px solid #f5f5f5; display: flex; justify-content: space-between; align-items: center;">
       <view style="font-size: {{30 * fontSizeMultiple}}rpx; color: #333;">关于我们</view>
@@ -116,11 +117,14 @@
     </button>
   </view>
 
-  <!-- 支付弹窗（适配子女端为父母支付） -->
+  <!-- 支付弹窗 -->
   <view wx:if="{{showPayDialog}}" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999; display: flex; align-items: center; justify-content: center;">
     <view style="width: 80%; background: white; border-radius: 16rpx; padding: 30rpx; box-shadow: 0 6rpx 16rpx rgba(0,0,0,0.1);">
       <view style="font-size: {{34 * fontSizeMultiple}}rpx; font-weight: bold; text-align: center; margin-bottom: 30rpx; color: #333;">
         {{isParentPay ? '为父母升级/续费' : (isFormalVersion ? '续费会员' : '升级正式版')}}
+      </view>
+      <view style="font-size: {{26 * fontSizeMultiple}}rpx; color: #ff4d4f; font-weight: bold; text-align: center; margin-bottom: 20rpx; padding: 10rpx; background: #fff5f5; border-radius: 8rpx;">
+        【重要提示】虚拟会员服务，一经付费即时生效，概不退款
       </view>
       <view style="font-size: {{26 * fontSizeMultiple}}rpx; color: #666; text-align: center; margin-bottom: 20rpx;">
         {{isParentPay ? '为绑定的父母账号开通正式版，解锁全部功能' : (isFormalVersion ? '选择续费时长' : '试用到期后，升级正式版即可继续使用全部功能')}}
@@ -145,46 +149,36 @@
       <button bindtap="closeAboutDialog" style="width: 100%; background: #1890ff; color: white; border: none; padding: 15rpx 0; border-radius: 12rpx; font-size: {{28 * fontSizeMultiple}}rpx;">关闭</button>
     </view>
   </view>
+
   <!-- 模式切换弹窗 -->
   <view wx:if="{{showModeSwitchSheet}}" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999; display: flex; align-items: center; justify-content: center;">
     <view style="width: 80%; background: white; border-radius: 16rpx; padding: 30rpx; box-shadow: 0 6rpx 16rpx rgba(0,0,0,0.1);">
       <view style="font-size: {{34 * fontSizeMultiple}}rpx; font-weight: bold; text-align: center; margin-bottom: 20rpx; color: #333;">
         {{isChildMode ? '切换为父母模式' : '切换为子女模式'}}
       </view>
-      
       <view wx:if="{{!isChildMode}}" style="margin-bottom: 30rpx;">
         <view style="font-size: {{26 * fontSizeMultiple}}rpx; color: #666; margin-bottom: 10rpx;">请输入父母6位绑定码：</view>
-        <input 
-          value="{{bindCode}}" 
-          bindinput="onBindCodeInput"
-          style="border: 1px solid #e5e5e5; border-radius: 8rpx; padding: 15rpx; font-size: {{28 * fontSizeMultiple}}rpx; color: #333;"
-          type="number"
-          maxlength="6"
-          placeholder="请输入6位数字绑定码"
-        />
+        <input model:value="{{bindCode}}" type="digit" maxlength="6" placeholder="请输入6位绑定码" style="border:1px solid #eee; border-radius:8rpx; padding:20rpx; font-size:{{30*fontSizeMultiple}}rpx;" />
       </view>
-
-      <view style="display: flex; gap: 20rpx;">
-        <button bindtap="cancelModeSwitch" style="flex: 1; background: #f5f5f5; color: #333; padding: 15rpx 0; border-radius: 8rpx; font-size: {{28 * fontSizeMultiple}}rpx; border: none;">取消</button>
-        <button bindtap="confirmModeSwitch" style="flex: 1; background: #1890ff; color: white; padding: 15rpx 0; border-radius: 8rpx; font-size: {{28 * fontSizeMultiple}}rpx; border: none;">确认</button>
+      <view style="display:flex; justify-content:space-between; gap:20rpx;">
+        <button bindtap="cancelModeSwitch" style="flex:1; background:#f5f5f5; border:none; border-radius:8rpx; font-size:{{28*fontSizeMultiple}}rpx;">取消</button>
+        <button bindtap="confirmModeSwitch" style="flex:1; background:#1890ff; color:white; border:none; border-radius:8rpx; font-size:{{28*fontSizeMultiple}}rpx;">确认切换</button>
       </view>
     </view>
   </view>
-  <!-- 后台设置入口（仅管理员显示） -->
-<view wx:if="{{isAdmin}}" style="margin-bottom: 80rpx;">
-  <view style="background: white; border-radius: 16rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
-    <view bindtap="navigateToAdmin" style="padding: 20rpx; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f5f5f5;">
-      <view style="font-size: {{30 * fontSizeMultiple}}rpx; color: #ff7d00; font-weight: 500;">后台设置（管理员专属）</view>
-      <view style="width: 16rpx; height: 16rpx; border-top: 2rpx solid #ff7d00; border-right: 2rpx solid #ff7d00; transform: rotate(45deg);"></view>
-    </view>
-  </view>
-</view>
 
-  <!-- 悬浮客服按钮 -->
-  <view style="position: fixed; right: 30rpx; bottom: 30rpx; z-index: 998;">
-    <button open-type="contact" session-from="咱爸咱妈平安签-我的页面-悬浮客服按钮" style="width: 100rpx; height: 100rpx; border-radius: 50%; background: linear-gradient(135deg, #07c160, #06b358); color: white; border: none; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: {{24 * fontSizeMultiple}}rpx; box-shadow: 0 6rpx 16rpx rgba(7, 193, 96, 0.5); padding: 0; transition: all 0.2s ease;" hover-class="hover-class">
-      <text style="font-size: {{40 * fontSizeMultiple}}rpx; margin-bottom: 4rpx;">💬</text>
-      <text style="display: block; font-size: {{20 * fontSizeMultiple}}rpx;">客服</text>
-    </button>
+  <!-- 管理员入口 -->
+  <view wx:if="{{isAdmin}}" style="margin-bottom: 80rpx;">
+    <view style="background: white; border-radius: 16rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
+      <view bindtap="navigateToAdmin" style="padding: 20rpx; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f5f5f5;">
+        <view style="font-size: {{30 * fontSizeMultiple}}rpx; color: #ff7d00; font-weight: 500;">后台设置（管理员专属）</view>
+        <view style="width: 16rpx; height: 16rpx; border-top: 2rpx solid #ff7d00; border-right: 2rpx solid #ff7d00; transform: rotate(45deg);"></view>
+      </view>
+      <!-- 新增：提现审核后台入口，和管理员入口同区域 -->
+      <view bindtap="goToWithdrawAudit" style="padding: 20rpx; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f5f5f5;">
+        <view style="font-size: {{30 * fontSizeMultiple}}rpx; color: #1890ff; font-weight: 500;">提现审核后台</view>
+        <view style="width: 16rpx; height: 16rpx; border-top: 2rpx solid #1890ff; border-right: 2rpx solid #1890ff; transform: rotate(45deg);"></view>
+      </view>
+    </view>
   </view>
 </view>

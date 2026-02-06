@@ -286,4 +286,11 @@ Page({
     const day = date.getDate().toString().padStart(2, "0");
     return `${year}-${month}-${day}`;
   },
+
+  // 新增：跳转到团长提现审核页面
+  goToWithdrawAudit() {
+    wx.navigateTo({
+      url: "/pages/withdrawAudit/index",
+    });
+  },
 });
