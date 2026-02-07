@@ -174,11 +174,6 @@
         <view style="font-size: {{30 * fontSizeMultiple}}rpx; color: #ff7d00; font-weight: 500;">后台设置（管理员专属）</view>
         <view style="width: 16rpx; height: 16rpx; border-top: 2rpx solid #ff7d00; border-right: 2rpx solid #ff7d00; transform: rotate(45deg);"></view>
       </view>
-      <!-- 新增：提现审核后台入口，和管理员入口同区域 -->
-      <view bindtap="goToWithdrawAudit" style="padding: 20rpx; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f5f5f5;">
-        <view style="font-size: {{30 * fontSizeMultiple}}rpx; color: #1890ff; font-weight: 500;">提现审核后台</view>
-        <view style="width: 16rpx; height: 16rpx; border-top: 2rpx solid #1890ff; border-right: 2rpx solid #1890ff; transform: rotate(45deg);"></view>
-      </view>
     </view>
   </view>
 </view>

@@ -163,7 +163,7 @@ Page({
     }
   },
 
-  async onLoad() {
+  async onLoad(options) {
     const app = getApp();
     if (!app.globalData) {
       app.globalData = {
@@ -172,6 +172,22 @@ Page({
         bindParentOpenid: "",
       };
     }
+     // 核心：接收并存储推广人 leaderOpenid，完成用户与团长的绑定
+    if (options.leaderOpenid) {
+      // 1. 存储到全局变量（支付时直接从全局获取）
+      app.globalData.leaderOpenid = options.leaderOpenid;
+      // 2. 存储到本地缓存（持久化，防止小程序重启/页面刷新后丢失）
+      wx.setStorageSync("leaderOpenid", options.leaderOpenid);
+      console.log("✅ 成功绑定推广团长，团长openid：", options.leaderOpenid);
+    } else {
+      // 若没有 leaderOpenid，尝试从缓存读取（防止用户之前绑定过）
+      const cacheLeaderOpenid = wx.getStorageSync("leaderOpenid");
+      if (cacheLeaderOpenid) {
+        app.globalData.leaderOpenid = cacheLeaderOpenid;
+        console.log("✅ 从缓存读取已绑定的团长openid：", cacheLeaderOpenid);
+      }
+    }
+
     this.setData({
       isChildMode: app.globalData.currentMode === "child",
     });

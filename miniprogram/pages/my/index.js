@@ -1,6 +1,9 @@
 const db = wx.cloud.database();
 const usersCol = db.collection("users");
 const bindRelationsCol = db.collection("bindRelations");
+// 新增：团长返佣相关集合
+const groupCol = db.collection("group"); // 团长信息表
+const commissionCol = db.collection("commission"); // 佣金记录表
 
 Page({
   data: {
@@ -45,20 +48,8 @@ Page({
       serviceEndTime: "",
       enableRemind: false,
     },
-
-    // 团长中心新增字段
-    showGroupLeaderCenter: false,
-    isGroupLeader: false,
-    groupLeaderData: {
-      pendingReward: 0,
-      withdrawAble: 0,
-      totalOrder: 0,
-    },
-    groupOrderList: [],
-    showGroupLeaderRule: false,
-    showOrderDetail: false,
-    showWithdrawResult: false,
-    withdrawResult: "",
+    // 新增：团长相关（不影响原有逻辑）
+    leaderOpenid: "", // 当前用户绑定的团长openid
   },
 
   onLoad() {
@@ -66,7 +57,10 @@ Page({
     this.setData({
       isChildMode: app.globalData.currentMode === "child",
       bindParentInfo: app.globalData.bindParentInfo || {},
+      // 新增：从全局获取团长openid（分享绑定后存储）
+      leaderOpenid: app.globalData.leaderOpenid || wx.getStorageSync("leaderOpenid") || "",
     });
+
     // 核心修复：动态初始化currentFontIndex（此时this已实例化，可正常访问data）
     const cacheFont = wx.getStorageSync("fontSizeMultiple");
     if (cacheFont) {
@@ -82,6 +76,7 @@ Page({
     this.checkAdminPermission(); // 校验管理员权限
     this.loadAllUserData();
   },
+
   // 校验是否为管理员
   async checkAdminPermission() {
     const app = getApp();
@@ -94,10 +89,12 @@ Page({
       this.setData({ isAdmin: false });
     }
   },
+
   // 跳转后台设置页面
   navigateToAdmin() {
     wx.navigateTo({ url: "/pages/admin/index" });
   },
+
   // 权限校验通用方法
   async checkChildPermission(targetOpenid) {
     const app = getApp();
@@ -120,6 +117,7 @@ Page({
       return false;
     }
   },
+
   // 优化版：仅差异化更新字体配置，避免重复setData导致闪烁
   loadCareModeSetting() {
     try {
@@ -127,13 +125,16 @@ Page({
       const targetOpenid = this.data.isChildMode
         ? app.globalData.bindParentOpenid
         : app.globalData.openid;
+
       // 已从data初始值读取缓存，无需重复设置初始状态
       const currentCareMode = this.data.careMode;
       const currentFontSize = this.data.fontSizeMultiple;
+
       // 子女模式无父母openid，直接返回
       if (this.data.isChildMode && !targetOpenid) {
         return;
       }
+
       // 仅数据库配置与当前状态不一致时，才更新页面+缓存
       usersCol
         .where({ _openid: targetOpenid })
@@ -177,9 +178,13 @@ Page({
       }
     }
   },
+
   // 关怀模式开关：关闭时强制还原1.0倍字体，无歧义
   onCareModeSwitchChange(e) {
     const careMode = e.detail.value;
+    console.log("开关点击后的值：", careMode);
+
+    // 安全获取当前字体配置，避免undefined
     const currentFontIndex = this.data.currentFontIndex || 0;
     const currentFont = this.data.fontOptions[currentFontIndex] || {
       value: 1.1,
@@ -191,6 +196,7 @@ Page({
     const targetOpenid = this.data.isChildMode
       ? app.globalData.bindParentOpenid
       : app.globalData.openid;
+
     // 先更新缓存，保证页面刷新后状态一致
     wx.setStorageSync("careMode", careMode);
     wx.setStorageSync("fontSizeMultiple", fontSizeMultiple);
@@ -202,6 +208,7 @@ Page({
         currentFontIndex: currentFontIndex,
       },
       () => {
+        console.log("setData后的careMode：", this.data.careMode);
         // 有目标openid时，同步更新数据库
         if (targetOpenid) {
           usersCol
@@ -233,6 +240,7 @@ Page({
       icon: "none",
     });
   },
+
   // 字体大小选择：同步更新页面、缓存、数据库
   onFontChange(e) {
     const index = e.detail.value;
@@ -241,13 +249,16 @@ Page({
     const targetOpenid = this.data.isChildMode
       ? app.globalData.bindParentOpenid
       : app.globalData.openid;
+
     // 先更新页面状态
     this.setData({
       currentFontIndex: index,
       fontSizeMultiple: selectedFont.value,
     });
+    // 同步更新缓存
     wx.setStorageSync("fontSizeMultiple", selectedFont.value);
 
+    // 有目标openid时，更新数据库
     if (targetOpenid) {
       usersCol
         .where({ _openid: targetOpenid })
@@ -269,6 +280,7 @@ Page({
     }
   },
 
+  // 加载用户/父母版本、试用、提醒等所有数据
   async loadAllUserData() {
     try {
       const app = getApp();
@@ -357,16 +369,17 @@ Page({
             userInfo: userInfo,
           });
 
+          // 试用到期弹窗提醒
           if (isTrialExpired) {
             wx.showModal({
               title: "试用已到期",
-              content:
-                "您的3天试用已结束，升级正式版后可继续使用全部功能【虚拟会员服务，一经付费概不退款】",
+              content: "您的3天试用已结束，升级正式版后可继续使用全部功能",
               showCancel: false,
               success: () => this.showPayDialog(),
             });
           }
         } else {
+          // 新用户初始化试用数据
           const now = new Date();
           const trialEndTime = new Date(now);
           trialEndTime.setDate(trialEndTime.getDate() + 3);
@@ -383,10 +396,9 @@ Page({
     } catch (err) {
       console.error("加载用户数据失败：", err);
       wx.showToast({ title: "加载数据失败，请重试", icon: "none" });
-    } finally {
-      this.loadGroupLeaderData();
     }
   },
+
   // 日期格式化：YYYY-MM-DD
   formatDate(date) {
     date = new Date(date);
@@ -395,6 +407,7 @@ Page({
     const day = date.getDate().toString().padStart(2, "0");
     return `${year}-${month}-${day}`;
   },
+
   // 邮件提醒开关：区分父母/自己模式，校验子女操作权限
   async onRemindSwitchChange(e) {
     const enableRemind = e.detail.value;
@@ -403,6 +416,7 @@ Page({
       ? app.globalData.bindParentOpenid
       : app.globalData.openid;
 
+    // 子女模式校验操作权限
     const hasPermission = await this.checkChildPermission(targetOpenid);
     if (!hasPermission) return;
 
@@ -420,6 +434,7 @@ Page({
         });
       }
 
+      // 同步页面状态，区分父母/自己模式
       this.setData({
         "userInfo.enableRemind": !this.data.isChildMode
           ? enableRemind
@@ -435,10 +450,12 @@ Page({
     }
   },
 
+  // 显示自己的支付弹窗
   showPayDialog() {
     this.setData({ showPayDialog: true, isParentPay: false });
   },
 
+  // 显示为父母支付的弹窗
   showParentPayDialog() {
     const app = getApp();
     if (!app.globalData.bindParentOpenid) {
@@ -447,74 +464,98 @@ Page({
     this.setData({ showPayDialog: true, isParentPay: true });
   },
 
+  // 关闭支付弹窗
   closePayDialog() {
     this.setData({ showPayDialog: false, isParentPay: false });
   },
 
-  async choosePayType(e) {
-    const type = e.currentTarget.dataset.type;
-    const amount = type === "month" ? 3 : 20;
-    const app = getApp();
-    const payOpenid = this.data.isParentPay
-      ? app.globalData.bindParentOpenid
-      : app.globalData.openid;
+  // 选择支付类型（月付/年付），发起支付（新增团长openid传递）
+  // 选择支付类型（月付/年付），发起支付（新增团长openid传递）
+async choosePayType(e) {
+  const type = e.currentTarget.dataset.type;
+  const amount = type === "month" ? 0.1 : 0.1; // 测试金额，可根据实际修改
+  const app = getApp();
+  const payOpenid = this.data.isParentPay
+    ? app.globalData.bindParentOpenid
+    : app.globalData.openid;
 
-    try {
-      wx.showLoading({ title: "创建订单中..." });
-      const res = await wx.cloud.callFunction({
-        name: "createPayOrder",
-        data: {
-          openid: payOpenid, // 原有：支付目标openid
-          payType: type, // 原有：月付/年付
-          amount, // 原有：支付金额
-          payerOpenid: app.globalData.openid, // 原有：付款人openid
-          leaderOpenid: app.globalData.openid, // 新增：当前付款人=推广团长（自己推广自己也计数）
+  // ===================== 调试日志 START =====================
+  console.log("===== 支付前检查团长信息 =====");
+  console.log("this.data.leaderOpenid =", this.data.leaderOpenid);
+  console.log("app.globalData.leaderOpenid =", app.globalData.leaderOpenid);
+  console.log("storage 里的 leaderOpenid =", wx.getStorageSync("leaderOpenid"));
+  console.log("payOpenid（被支付人）=", payOpenid);
+  console.log("payType =", type);
+  // ===================== 调试日志 END =====================
+
+  try {
+    wx.showLoading({ title: "创建订单中..." });
+
+    // 调用云函数创建支付订单（新增：传递团长openid）
+    const res = await wx.cloud.callFunction({
+      name: "createPayOrder",
+      data: {
+        openid: payOpenid,
+        payType: type,
+        amount,
+        payerOpenid: app.globalData.openid,
+        leaderOpenid: this.data.leaderOpenid || "", // 确保不会传 undefined
+      },
+    });
+
+    // ===================== 调试日志 START =====================
+    console.log("===== createPayOrder 返回结果 =====");
+    console.log("云函数返回:", res);
+    // ===================== 调试日志 END =====================
+
+    wx.hideLoading();
+
+    if (res.result?.success) {
+      const payParams = res.result.payParams;
+      // 发起微信支付
+      wx.requestPayment({
+        ...payParams,
+        success: async () => {
+          console.log("===== 微信支付成功 =====");
+          // 支付成功，更新版本状态
+          if (this.data.isParentPay) {
+            await this.updateParentVersion(type, payOpenid);
+            wx.showToast({ title: "为父母升级/续费成功" });
+          } else {
+            await this.updateUserVersion(type);
+            const toastTitle = this.data.isFormalVersion
+              ? "续费成功"
+              : "升级成功";
+            wx.showToast({ title: toastTitle });
+          }
+          this.closePayDialog();
+          this.loadAllUserData(); // 重新加载数据，更新页面状态
+        },
+        fail: (payErr) => {
+          console.error("===== 支付失败 =====", payErr);
+          wx.showToast({
+            title: payErr.errMsg.includes("cancel")
+              ? "已取消支付"
+              : "支付失败",
+            icon: "none",
+          });
         },
       });
-      wx.hideLoading();
-
-      if (res.result?.success) {
-        const payParams = res.result.payParams;
-        wx.requestPayment({
-          ...payParams,
-          success: async () => {
-            if (this.data.isParentPay) {
-              await this.updateParentVersion(type, payOpenid);
-              wx.showToast({ title: "为父母升级/续费成功" });
-            } else {
-              await this.updateUserVersion(type);
-              const toastTitle = this.data.isFormalVersion
-                ? "续费成功"
-                : "升级成功";
-              wx.showToast({ title: toastTitle });
-            }
-            this.closePayDialog();
-            this.loadAllUserData();
-          },
-          fail: (payErr) => {
-            console.error("支付请求失败：", payErr);
-            wx.showToast({
-              title: payErr.errMsg.includes("cancel")
-                ? "已取消支付"
-                : "支付失败",
-              icon: "none",
-            });
-          },
-        });
-      } else {
-        wx.showToast({
-          title: `创建订单失败：${res.result?.msg || "未知错误"}`,
-          icon: "none",
-          duration: 3000,
-        });
-      }
-    } catch (err) {
-      wx.hideLoading();
-      console.error("支付失败：", err);
-      wx.showToast({ title: "支付异常，请重试", icon: "none" });
+    } else {
+      wx.showToast({
+        title: `创建订单失败：${res.result?.msg || "未知错误"}`,
+        icon: "none",
+        duration: 3000,
+      });
     }
-  },
+  } catch (err) {
+    wx.hideLoading();
+    console.error("===== 整体 catch 异常 =====", err);
+    wx.showToast({ title: "支付异常，请重试", icon: "none" });
+  }
+},
 
+  // 更新自己的版本状态（正式版/续费）
   async updateUserVersion(payType) {
     try {
       const app = getApp();
@@ -523,6 +564,7 @@ Page({
         .where({ _openid: app.globalData.openid })
         .get();
 
+      // 计算当前服务结束时间，试用到期则从当前时间开始
       let currentServiceEnd = now;
       if (userRes.data.length > 0) {
         const userData = userRes.data[0];
@@ -530,6 +572,7 @@ Page({
         currentServiceEnd = this.data.isTrialExpired ? now : trialEndTime;
       }
 
+      // 计算新的服务结束时间
       let serviceEndTime = new Date(currentServiceEnd);
       if (payType === "month") {
         serviceEndTime.setDate(serviceEndTime.getDate() + 30);
@@ -546,6 +589,7 @@ Page({
         trialExpired: false,
       };
 
+      // 更新/新增用户数据
       if (userRes.data.length > 0) {
         await usersCol.doc(userRes.data[0]._id).update({ data: updateData });
       } else {
@@ -563,11 +607,13 @@ Page({
     }
   },
 
+  // 更新父母的版本状态（正式版/续费）
   async updateParentVersion(payType, parentOpenid) {
     try {
       const now = new Date();
       const userRes = await usersCol.where({ _openid: parentOpenid }).get();
 
+      // 计算父母当前服务结束时间
       let currentServiceEnd = now;
       if (userRes.data.length > 0) {
         const userData = userRes.data[0];
@@ -575,6 +621,7 @@ Page({
         currentServiceEnd = new Date() > trialEndTime ? now : trialEndTime;
       }
 
+      // 计算新的服务结束时间
       let serviceEndTime = new Date(currentServiceEnd);
       if (payType === "month") {
         serviceEndTime.setDate(serviceEndTime.getDate() + 30);
@@ -591,6 +638,7 @@ Page({
         trialExpired: false,
       };
 
+      // 更新/新增父母数据
       if (userRes.data.length > 0) {
         await usersCol.doc(userRes.data[0]._id).update({ data: updateData });
       } else {
@@ -608,6 +656,7 @@ Page({
     }
   },
 
+  // 生成绑定码：父母模式专属，新码覆盖旧码（旧码失效）
   generateBindCode() {
     if (this.data.isChildMode) {
       wx.showToast({ title: "子女模式无法生成绑定码", icon: "none" });
@@ -624,6 +673,7 @@ Page({
           const newBindCode = res.result.bindCode;
           const app = getApp();
 
+          // 新码覆盖旧码，使旧码对新用户失效
           usersCol
             .where({ _openid: app.globalData.openid })
             .get()
@@ -638,6 +688,7 @@ Page({
               }
             });
 
+          // 显示绑定码，支持复制
           wx.showModal({
             title: "绑定码生成成功",
             content: `新绑定码：【${newBindCode}】\n旧绑定码已失效，已绑定的子女可正常使用\n点击“复制”即可复制到剪贴板`,
@@ -676,6 +727,7 @@ Page({
     });
   },
 
+  // 复制绑定码
   copyBindCode(e) {
     const bindCode = e.currentTarget.dataset.code;
     wx.setStorageSync("bindCode", bindCode);
@@ -685,22 +737,27 @@ Page({
     });
   },
 
+  // 显示关于弹窗
   showAboutDialog() {
     this.setData({ showAboutDialog: true });
   },
 
+  // 关闭关于弹窗
   closeAboutDialog() {
     this.setData({ showAboutDialog: false });
   },
 
+  // 分享给朋友（新增：携带团长openid）
   onShareAppMessage() {
+    const app = getApp();
     return {
       title: "咱爸咱妈平安签，守护家人安全",
-      path: "/pages/index/index",
+      path: `/pages/index/index?leaderOpenid=${app.globalData.openid}`, // 携带当前用户（团长）openid
       imageUrl: "../../images/001.jpg",
     };
   },
 
+  // 分享到朋友圈
   onShareTimeline() {
     return {
       title: "咱爸咱妈平安签，守护家人安全",
@@ -708,31 +765,37 @@ Page({
     };
   },
 
+  // 页面显示时：更新模式状态+加载用户数据，移除重复字体加载（避免闪烁）
   onShow() {
     const app = getApp();
     this.setData({
       isChildMode: app.globalData.currentMode === "child",
       bindParentInfo: app.globalData.bindParentInfo || {},
     });
-    this.loadAllUserData();
+    this.loadAllUserData(); // 仅加载用户数据，无需重复加载字体配置
   },
 
+  // 显示模式切换底部弹窗
   showModeSwitchSheet() {
     this.setData({ showModeSwitchSheet: true });
   },
 
+  // 取消模式切换
   cancelModeSwitch() {
     this.setData({ showModeSwitchSheet: false, bindCode: "" });
   },
 
+  // 绑定码输入框变化
   onBindCodeInput(e) {
     this.setData({ bindCode: e.detail.value });
   },
 
+  // 确认模式切换：父母→子女（需绑定码）/子女→父母（清空绑定）
   confirmModeSwitch() {
     const { isChildMode, bindCode } = this.data;
     const app = getApp();
 
+    // 父母模式切子女模式：校验绑定码
     if (!isChildMode) {
       if (!bindCode || bindCode.length !== 6) {
         wx.showToast({ title: "请输入6位父母绑定码", icon: "none" });
@@ -747,6 +810,7 @@ Page({
             return;
           }
           const parentOpenid = res.data[0]._openid;
+          // 更新全局状态+本地缓存，持久化模式
           app.globalData.currentMode = "child";
           app.globalData.bindParentOpenid = parentOpenid;
           app.globalData.bindParentInfo = res.data[0];
@@ -760,13 +824,14 @@ Page({
             bindParentInfo: res.data[0],
           });
           wx.showToast({ title: "已切换至子女模式" });
-          this.loadAllUserData();
+          this.loadAllUserData(); // 重新加载父母数据
         })
         .catch((err) => {
           console.error("验证绑定码失败：", err);
           wx.showToast({ title: "切换失败", icon: "none" });
         });
     } else {
+      // 子女模式切父母模式：清空全局+缓存状态
       app.globalData.currentMode = "parent";
       app.globalData.bindParentOpenid = "";
       app.globalData.bindParentInfo = {};
@@ -789,123 +854,10 @@ Page({
         },
       });
       wx.showToast({ title: "已切换至父母模式" });
-      this.loadAllUserData();
+      this.loadAllUserData(); // 重新加载自己的数据
     }
   },
-
-  // ==================== 团长中心方法 ====================
-  showGroupLeaderCenter() {
-    wx.navigateTo({
-      url: "/pages/groupLeader/index",
-    });
-  },
-
-  async loadGroupLeaderData() {
-    const isPay =
-      this.data.isFormalVersion || this.data.parentPayInfo.isFormalVersion;
-    if (!isPay) {
-      this.setData({ isGroupLeader: false });
-      return;
-    }
-    try {
-      const app = getApp();
-      const res = await wx.cloud.callFunction({
-        name: "groupLeader",
-        data: {
-          action: "getData",
-          openid: app.globalData.openid,
-        },
-      });
-      if (res.result.success) {
-        this.setData({
-          isGroupLeader: true,
-          groupLeaderData: res.result.data || {
-            pendingReward: 0,
-            withdrawAble: 0,
-            totalOrder: 0,
-          },
-          groupOrderList: res.result.orderList || [],
-        });
-      }
-    } catch (err) {
-      console.error("loadGroupLeaderData", err);
-    }
-  },
-
-  copyShareLink() {
-    const app = getApp();
-    const link = `#小程序://咱爸咱妈平安签/sCXdY0FvLESnAsv?leaderOpenid=${app.globalData.openid}`;
-    wx.setClipboardData({
-      data: link,
-      success: () => wx.showToast({ title: "推广链接已复制" }),
-      fail: () => wx.showToast({ title: "复制失败", icon: "none" }),
-    });
-  },
-
-  saveSharePoster() {
-    wx.showLoading({ title: "生成海报中..." });
-    const app = getApp();
-    wx.cloud.callFunction({
-      name: "groupLeader",
-      data: { action: "generatePoster", openid: app.globalData.openid },
-      success: (res) => {
-        wx.hideLoading();
-        if (res.result.success) {
-          wx.saveImageToPhotosAlbum({
-            filePath: res.result.posterPath,
-            success: () => wx.showToast({ title: "海报已保存到相册" }),
-            fail: () => wx.showToast({ title: "保存失败", icon: "none" }),
-          });
-        } else {
-          wx.showToast({ title: "生成海报失败", icon: "none" });
-        }
-      },
-      fail: () => {
-        wx.hideLoading();
-        wx.showToast({ title: "生成海报失败", icon: "none" });
-      },
-    });
-  },
-
-  async applyWithdraw() {
-    const { withdrawAble } = this.data.groupLeaderData;
-    if (withdrawAble < 1) {
-      wx.showToast({ title: "可提现金额≥1元才能申请", icon: "none" });
-      return;
-    }
-    wx.showLoading({ title: "提交申请中..." });
-    try {
-      const app = getApp();
-      const res = await wx.cloud.callFunction({
-        name: "groupLeader",
-        data: {
-          action: "applyWithdraw",
-          openid: app.globalData.openid,
-          amount: withdrawAble,
-        },
-      });
-      wx.hideLoading();
-      if (res.result.success) {
-        this.setData({
-          showWithdrawResult: true,
-          withdrawResult: "提现申请已提交，1-2个工作日审核，到账微信零钱",
-          "groupLeaderData.withdrawAble": 0,
-        });
-      } else {
-        this.setData({
-          showWithdrawResult: true,
-          withdrawResult: res.result.msg || "提现申请失败",
-        });
-      }
-    } catch (err) {
-      wx.hideLoading();
-      this.setData({
-        showWithdrawResult: true,
-        withdrawResult: "提现异常，请联系客服",
-      });
-    }
-  },
-  // 跳转到独立团长中心页面
+    // 跳转到独立团长中心页面
   goToGroupLeader() {
     wx.navigateTo({
       url: "/pages/groupLeader/index",
@@ -913,23 +865,5 @@ Page({
         wx.showToast({ title: "团长中心页面不存在", icon: "none" });
       },
     });
-  },
-
-  // 跳转到提现审核后台
-  goToWithdrawAudit() {
-    wx.navigateTo({
-      url: "/pages/withdrawAudit/index",
-      fail: () => {
-        wx.showToast({ title: "审核后台页面不存在", icon: "none" });
-      },
-    });
-  },
-  closeGroupLeaderDialogs() {
-    this.setData({
-      showGroupLeaderCenter: false,
-      showGroupLeaderRule: false,
-      showOrderDetail: false,
-      showWithdrawResult: false,
-    });
-  },
+  }
 });
