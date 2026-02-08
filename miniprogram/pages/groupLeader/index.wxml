@@ -1,76 +1,89 @@
-<view class="container" style="padding: 20rpx; background: linear-gradient(to bottom, #f0f9ff, #ffffff); min-height: 100vh;">
+<view class="container" style="padding:20rpx;background:linear-gradient(to bottom,#f0f9ff,#fff);min-height:100vh;">
+
   <!-- 收益概览 -->
-  <view style="background: white; border-radius: 16rpx; padding: 25rpx; margin-bottom: 25rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
-    <view style="font-size: 28rpx; color: #666; margin-bottom: 15rpx;">收益概览</view>
-    <view style="display: flex; justify-content: space-between; margin-bottom: 10rpx;">
-      <view style="font-size: 26rpx; color: #333;">待结算收益</view>
-      <view style="font-size: 26rpx; color: #ff7d00; font-weight: 500;">{{groupLeaderData.pendingReward || 0}} 元</view>
+  <view style="background:#fff;border-radius:16rpx;padding:25rpx;margin-bottom:25rpx;box-shadow:0 2rpx 8rpx rgba(0,0,0,0.05);">
+    <view style="font-size:28rpx;color:#666;margin-bottom:15rpx;">收益概览</view>
+    <view style="display:flex;justify-content:space-between;margin-bottom:10rpx;">
+      <view style="font-size:26rpx;color:#333;">待结算收益</view>
+      <view style="font-size:26rpx;color:#ff7d00;font-weight:500;">{{groupLeaderData.pendingReward||0}} 元</view>
     </view>
-    <view style="display: flex; justify-content: space-between; margin-bottom: 10rpx;">
-      <view style="font-size: 26rpx; color: #333;">可提现金额</view>
-      <view style="font-size: 26rpx; color: #07c160; font-weight: 500;">{{groupLeaderData.withdrawAble || 0}} 元</view>
+    <view style="display:flex;justify-content:space-between;margin-bottom:10rpx;">
+      <view style="font-size:26rpx;color:#333;">可提现金额</view>
+      <view style="font-size:26rpx;color:#07c160;font-weight:500;">{{groupLeaderData.withdrawAble||0}} 元</view>
     </view>
-    <view style="display: flex; justify-content: space-between;">
-      <view style="font-size: 26rpx; color: #333;">总推广订单数</view>
-      <view style="font-size: 26rpx; color: #1890ff; font-weight: 500;">{{groupLeaderData.totalOrder || 0}} 单</view>
+    <view style="display:flex;justify-content:space-between;">
+      <view style="font-size:26rpx;color:#333;">总推广订单</view>
+      <view style="font-size:26rpx;color:#1890ff;font-weight:500;">{{groupLeaderData.totalOrder||0}} 单</view>
     </view>
   </view>
 
-  <!-- 分享按钮 -->
-  <view class="action-card" style="background: white; border-radius: 16rpx; padding: 25rpx; margin-bottom: 25rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
-    <button bindtap="shareToFriend" style="width: 100%; background: #1890ff; color: white; border: none; border-radius: 12rpx; font-size: 30rpx; padding: 18rpx 0;">
-      📤 分享给好友（邀请付费享1-5元佣金）
+  <!-- 分享 -->
+  <view style="background:#fff;border-radius:16rpx;padding:25rpx;margin-bottom:25rpx;box-shadow:0 2rpx 8rpx rgba(0,0,0,0.05);">
+    <button bindtap="shareToFriend" style="width:100%;background:#1890ff;color:white;border:none;border-radius:12rpx;font-size:30rpx;padding:18rpx 0;">
+      📤 分享给好友（邀请付费享佣金）
     </button>
   </view>
 
-  <!-- 推广订单记录 → 修复：用 rewardRecords 返佣记录，不再用订单表，彻底解决重复 -->
-  <view style="background: white; border-radius: 16rpx; padding: 25rpx; margin-bottom: 25rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
-    <view style="font-size: 30rpx; font-weight: bold; color: #333; margin-bottom: 20rpx;">推广订单记录</view>
-    
-    <view wx:for="{{rewardRecords}}" wx:key="_id" style="padding: 16rpx; border-bottom: 1px solid #f5f5f5;">
-      <view style="font-size: 28rpx; color: #333;">用户首次{{item.payType === 'month' ? '月付' : '年付'}}</view>
-      <view style="font-size: 24rpx; color: #666; margin: 8rpx 0;">佣金金额：<span style="color: #ff7d00; font-weight: 500;">{{item.rewardAmount || 0}} 元</span></view>
-      <view style="font-size: 22rpx; color: #999;">{{item.createTime ? item.createTime.split(' ')[0] : '未知时间'}}</view>
+  <!-- 提现按钮（固定显示） -->
+  <view style="background:#fff;border-radius:16rpx;padding:25rpx;margin-bottom:25rpx;box-shadow:0 2rpx 8rpx rgba(0,0,0,0.05);">
+    <button bindtap="showWithdrawModal" style="width:100%;background:#07c160;color:white;border:none;border-radius:12rpx;font-size:30rpx;padding:18rpx 0;">
+      💰 申请提现（上传收款码）
+    </button>
+  </view>
+
+  <!-- 推广记录 -->
+  <view style="background:#fff;border-radius:16rpx;padding:25rpx;margin-bottom:25rpx;box-shadow:0 2rpx 8rpx rgba(0,0,0,0.05);">
+    <view style="font-size:30rpx;font-weight:bold;color:#333;margin-bottom:20rpx;">推广订单记录</view>
+    <view wx:for="{{rewardRecords}}" wx:key="_id" style="padding:16rpx;border-bottom:1rpx solid #f5f5f5;">
+      <view style="font-size:28rpx;color:#333;">用户首次{{item.payType==='month'?'月付':'年付'}}</view>
+      <view style="font-size:24rpx;color:#666;margin:8rpx 0;">佣金：<text style="color:#ff7d00;">{{item.rewardAmount||0}} 元</text></view>
+      <view style="font-size:22rpx;color:#999;">{{item.formatTime}}</view>
     </view>
-    
-    <view wx:if="{{!rewardRecords || rewardRecords.length == 0}}" style="text-align:center; padding:40rpx; color:#999; font-size:26rpx;">暂无推广订单，分享给好友邀请付费吧~</view>
+    <view wx:if="{{!rewardRecords.length}}" style="text-align:center;padding:40rpx;color:#999;font-size:26rpx;">暂无推广记录</view>
   </view>
 
   <!-- 提现记录 -->
-  <view style="background: white; border-radius: 16rpx; padding: 25rpx; margin-bottom: 80rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
-    <view style="font-size: 30rpx; font-weight: bold; color: #333; margin-bottom: 20rpx;">提现记录</view>
-    <view wx:for="{{withdrawRecords}}" wx:key="_id" style="padding: 16rpx; border-bottom: 1px solid #f5f5f5;">
-      <view style="display: flex; justify-content: space-between; align-items: center;">
-        <view style="font-size: 28rpx; color: #333;">提现金额：{{item.amount || 0}} 元</view>
-        <view style="font-size: 24rpx; color: {{item.status === 'pending' ? '#ff7d00' : item.status === 'success' ? '#07c160' : '#ff4d4f'}};">
-          {{item.status === 'pending' ? '审核中' : item.status === 'success' ? '已到账' : '已拒绝'}}
+  <view style="background:#fff;border-radius:16rpx;padding:25rpx;margin-bottom:80rpx;box-shadow:0 2rpx 8rpx rgba(0,0,0,0.05);">
+    <view style="font-size:30rpx;font-weight:bold;color:#333;margin-bottom:20rpx;">提现记录</view>
+    <view wx:for="{{withdrawRecords}}" wx:key="_id" style="padding:16rpx;border-bottom:1rpx solid #f5f5f5;">
+      <view style="display:flex;justify-content:space-between;align-items:center;">
+        <view style="font-size:28rpx;color:#333;">提现：{{item.amount||0}} 元</view>
+        <view style="font-size:24rpx;color:{{item.status==='pending'?'#ff7d00':item.status==='success'?'#07c160':'#ff4d4f'}};">
+          {{item.status==='pending'?'审核中':item.status==='success'?'已到账':'已拒绝'}}
         </view>
       </view>
-      <view style="font-size: 22rpx; color: #999; margin-top:8rpx;">申请时间：{{item.createTime ? item.createTime.split(' ')[0] : '未知时间'}}</view>
+      <view style="font-size:22rpx;color:#999;margin-top:8rpx;">{{item.formatTime}}</view>
     </view>
-    <view wx:if="{{!withdrawRecords || withdrawRecords.length == 0}}" style="text-align:center; padding:40rpx; color:#999; font-size:26rpx;">暂无提现记录，可提现金额满1元即可申请~</view>
+    <view wx:if="{{!withdrawRecords.length}}" style="text-align:center;padding:40rpx;color:#999;font-size:26rpx;">暂无提现记录</view>
   </view>
 
-  <!-- 提现弹窗 -->
-  <view wx:if="{{showWithdrawModal}}" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:999; display:flex; align-items:center; justify-content:center;">
-    <view style="width:80%; background:#fff; border-radius:16rpx; padding:30rpx;">
-      <view style="font-size:32rpx; font-weight:bold; text-align:center; margin-bottom:25rpx;">申请提现</view>
-      
+  <!-- 提现弹窗：上传收款码图片 -->
+  <view wx:if="{{showWithdrawModal}}" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:999;display:flex;align-items:center;justify-content:center;">
+    <view style="width:85%;background:#fff;border-radius:20rpx;padding:35rpx;box-sizing:border-box;">
+      <view style="font-size:34rpx;font-weight:bold;text-align:center;margin-bottom:30rpx;">申请提现</view>
+
       <view style="margin-bottom:25rpx;">
-        <view style="font-size:26rpx; color:#666; margin-bottom:10rpx;">可提现金额：<text style="color:#07c160;">{{groupLeaderData.withdrawAble || 0}} 元</text></view>
-        <input bindinput="bindWithdrawAmount" value="{{withdrawAmount}}" type="digit" placeholder="请输入提现金额" style="border:1px solid #eee; border-radius:8rpx; padding:20rpx; font-size:28rpx;" />
+        <view style="font-size:26rpx;color:#666;margin-bottom:10rpx;">可提现：<text style="color:#07c160;font-weight:bold;">{{groupLeaderData.withdrawAble||0}} 元</text></view>
+        <input bindinput="bindWithdrawAmount" value="{{withdrawAmount}}" type="digit" placeholder="输入提现金额" style="border:1rpx solid #eee;border-radius:8rpx;padding:20rpx;font-size:28rpx;" />
+      </view>
+
+      <view style="margin-bottom:25rpx;">
+        <input bindinput="bindWechatName" value="{{payeeInfo.wechatName}}" placeholder="微信昵称" style="border:1rpx solid #eee;border-radius:8rpx;padding:20rpx;font-size:28rpx;" />
       </view>
 
       <view style="margin-bottom:30rpx;">
-        <view style="font-size:26rpx; color:#666; margin-bottom:10rpx;">微信收款信息</view>
-        <input bindinput="bindWechatName" value="{{payeeInfo.wechatName}}" placeholder="微信昵称" style="border:1px solid #eee; border-radius:8rpx; padding:20rpx; font-size:28rpx; margin-bottom:15rpx;" />
-        <input bindinput="bindWechatNo" value="{{payeeInfo.wechatNo}}" placeholder="微信号/收款码" style="border:1px solid #eee; border-radius:8rpx; padding:20rpx; font-size:28rpx;" />
+        <view style="font-size:26rpx;color:#666;margin-bottom:15rpx;">上传微信收款码</view>
+        <view wx:if="{{!qrcodeUrl}}" bindtap="chooseQrcode" style="width:220rpx;height:220rpx;border:2rpx dashed #ccc;border-radius:12rpx;display:flex;align-items:center;justify-content:center;color:#999;font-size:24rpx;">
+          点击上传
+        </view>
+        <image wx:else src="{{qrcodeUrl}}" style="width:220rpx;height:220rpx;border-radius:12rpx;object-fit:cover;" />
       </view>
 
-      <view style="display:flex; gap:20rpx;">
-        <button bindtap="closeWithdrawModal" style="flex:1; background:#f5f5f5; border:none; border-radius:8rpx; padding:15rpx; font-size:28rpx;">取消</button>
-        <button bindtap="submitWithdraw" style="flex:1; background:#07c160; color:white; border:none; border-radius:8rpx; padding:15rpx; font-size:28rpx;">提交申请</button>
+      <view style="display:flex;gap:20rpx;">
+        <button bindtap="closeWithdrawModal" style="flex:1;background:#f5f5f5;border:none;border-radius:10rpx;padding:18rpx;font-size:28rpx;">取消</button>
+        <button bindtap="submitWithdraw" style="flex:1;background:#07c160;color:white;border:none;border-radius:10rpx;padding:18rpx;font-size:28rpx;">提交</button>
       </view>
     </view>
   </view>
+
 </view>

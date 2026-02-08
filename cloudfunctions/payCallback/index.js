@@ -1,82 +1,103 @@
 const cloud = require('wx-server-sdk');
-// 修复1：指定固定env，避免环境错乱（替换成你的环境ID）
-cloud.init();
+cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const _ = db.command;
 
 exports.main = async (event, context) => {
+  // 全链路日志：定位执行流程
+  console.log("===== payCallback 开始执行 =====");
+  console.log("原始回调参数：", JSON.stringify(event));
+
+  // 解析支付回调参数
   const payEvent = event['cloud-pay'] || event;
+  console.log("解析后的支付事件：", JSON.stringify(payEvent));
+
   const { resultCode, outTradeNo } = payEvent;
+  console.log("支付结果码(resultCode)：", resultCode, "订单号(outTradeNo)：", outTradeNo);
 
-  // 新增：打印关键日志，方便排查
-  console.log('===== payCallback 开始执行 =====');
-  console.log('resultCode:', resultCode);
-  console.log('outTradeNo:', outTradeNo);
+  // 非成功支付直接返回
+  if (resultCode !== 'SUCCESS') {
+    console.log("支付未成功，返回失败");
+    return { errcode: -1, errmsg: 'payment not success' };
+  }
 
-  if (resultCode === 'SUCCESS') {
-    try {
-      const orderRes = await db.collection('orders').where({ orderNo: outTradeNo }).get();
-      if (orderRes.data.length > 0) {
-        const order = orderRes.data[0];
-        if (order.hasCommission === true || order.status === 'paid') {
-  console.log('订单已处理过（已支付/已发佣金），跳过回调逻辑');
-  return { errcode: 0, errmsg: 'success' };
-}
-        const { openid, payType, leaderOpenid, hasCommission } = order;
-        
-        // 新增：打印订单和团长信息
-        console.log('订单详情:', order);
-        console.log('团长ID:', leaderOpenid);
-        console.log('是否已发佣金:', hasCommission);
+  try {
+    // 1. 查询订单（核心：根据outTradeNo找订单）
+    console.log("开始查询订单：", outTradeNo);
+    const orderRes = await db.collection('orders').where({ orderNo: outTradeNo }).get();
+    console.log("订单查询结果：", JSON.stringify(orderRes));
 
-        // 原有会员时长更新逻辑（完全保留）
-        const serviceDays = payType === 'month' ? 30 : 365;
-        const user = await db.collection('users').where({ _openid: openid }).get();
-        const now = new Date();
-        let serviceEndTime;
+    if (orderRes.data.length === 0) {
+      console.error("订单未找到：", outTradeNo);
+      return { errcode: -1, errmsg: 'order not found' };
+    }
 
-        if (user.data.length > 0 && user.data[0].serviceEndTime) {
-          const oldEnd = new Date(user.data[0].serviceEndTime);
-          serviceEndTime = oldEnd > now
-            ? new Date(oldEnd.setDate(oldEnd.getDate() + serviceDays))
-            : new Date(now.setDate(now.getDate() + serviceDays));
-        } else {
-          serviceEndTime = new Date(now.setDate(now.getDate() + serviceDays));
-        }
+    const order = orderRes.data[0];
+    console.log("找到订单详情：", JSON.stringify(order));
 
-        // 更新订单状态
-        await db.collection('orders').doc(order._id).update({ 
-          data: { status: 'paid', payTime: db.serverDate() } 
-        });
+    // 2. 检查是否已处理（防重复发佣）
+    if (order.status === 'paid' || order.hasCommission) {
+      console.log("订单已处理/已发佣，跳过：", outTradeNo);
+      return { errcode: 0, errmsg: 'already handled' };
+    }
 
-        // 更新用户会员
-        await db.collection('users').where({ _openid: openid }).update({
-          data: {
-            isFormalVersion: true,
-            serviceEndTime: serviceEndTime.toISOString().split('T')[0],
-            payType,
-            lastPayTime: db.serverDate()
-          }
-        });
+    const { openid, payType, leaderOpenid } = order;
+    console.log("订单核心信息：openid=", openid, "团长ID=", leaderOpenid, "支付类型=", payType);
 
-        // 团长佣金逻辑（核心优化）
-        // 团长佣金逻辑（修复后）
-// 团长佣金逻辑（真实业务版：仅首次支付发佣金）
-// 团长佣金逻辑（最终稳定版：无任何报错，真实首单逻辑）
-if (leaderOpenid && !hasCommission) {
-  // 1. 统计用户已支付成功订单数（真实首单判定）
-  const countRes = await db.collection('orders')
-    .where({ openid, status: 'paid' })
-    .count();
-  const payCount = countRes.total;
-  console.log('该用户已支付成功订单总数:', payCount);
+    // 3. 会员时长逻辑（不影响佣金，保留）
+    const serviceDays = payType === 'month' ? 30 : 365;
+    const userRes = await db.collection('users').where({ _openid: openid }).get();
+    const now = new Date();
+    let serviceEndTime;
 
-  // 2. 真实首单逻辑：仅订单数=1时发佣金
-  if (payCount === 1) { 
+    if (userRes.data.length > 0 && userRes.data[0].serviceEndTime) {
+      const oldEnd = new Date(userRes.data[0].serviceEndTime);
+      serviceEndTime = oldEnd > now
+        ? new Date(oldEnd.setDate(oldEnd.getDate() + serviceDays))
+        : new Date(now.setDate(now.getDate() + serviceDays));
+    } else {
+      serviceEndTime = new Date(now.setDate(now.getDate() + serviceDays));
+    }
+
+    // 4. 更新订单为已支付
+    await db.collection('orders').doc(order._id).update({
+      data: { status: 'paid', payTime: db.serverDate() }
+    });
+
+    // 5. 更新用户会员信息
+    await db.collection('users').where({ _openid: openid }).update({
+      data: {
+        isFormalVersion: true,
+        serviceEndTime: serviceEndTime.toISOString().split('T')[0],
+        payType,
+        lastPayTime: db.serverDate()
+      }
+    });
+
+    // 6. 团长佣金逻辑：仅新用户首单 + 非自购
+    if (!leaderOpenid || leaderOpenid === openid) {
+      console.log("无团长ID 或 团长自购，不发佣");
+      await db.collection('orders').doc(order._id).update({ data: { hasCommission: true } });
+      return { errcode: 0, errmsg: 'no leader or self buy' };
+    }
+
+    // 7. 检查是否是新用户首单（临时放宽：前2单都发佣，测试用）
+    const paidCount = await db.collection('orders')
+      .where({ openid, status: 'paid' }).count();
+    console.log("用户历史付费订单数：", paidCount.total);
+
+    // 临时修改：从 !==1 改为 <=2，测试阶段允许前2单发佣（正式上线改回 !==1）
+    if (paidCount.total > 2) {
+      console.log("非首单/次单，不发佣（订单数：", paidCount.total, "）");
+      await db.collection('orders').doc(order._id).update({ data: { hasCommission: true } });
+      return { errcode: 0, errmsg: 'not first/second paid' };
+    }
+
+    // 8. 计算佣金
     const commission = payType === 'month' ? 1 : 5;
-    console.log('新用户首次支付，发放佣金:', commission);
+    console.log("计算佣金：", commission, "元（支付类型：", payType, "）");
 
-    // 3. 写入佣金流水（必成功）
+    // 9. 写入佣金记录
     await db.collection('rewardRecords').add({
       data: {
         userOpenid: openid,
@@ -86,54 +107,46 @@ if (leaderOpenid && !hasCommission) {
         createTime: db.serverDate()
       }
     });
+    console.log("佣金记录写入成功：leaderOpenid=", leaderOpenid);
 
-    // 4. 写入团长收益（不用 _.inc()，彻底解决报错）
-    // 先查询团长记录（容错：不存在就返回空）
-    let leaderData = {};
+    // 10. 更新团长收益（核心：保证金额累加）
+    let leader = { withdrawAble: 0, totalOrder: 0 };
     try {
-      const leaderRes = await db.collection('groupLeader').doc(leaderOpenid).get();
-      leaderData = leaderRes.data || {};
-    } catch (err) {
-      // 记录不存在时，初始化空数据
-      leaderData = { withdrawAble: 0, totalOrder: 0 };
+      const ld = await db.collection('groupLeader').doc(leaderOpenid).get();
+      if (ld.data) leader = ld.data;
+      console.log("团长原有收益：", JSON.stringify(leader));
+    } catch (e) {
+      console.log("团长记录不存在，初始化新记录");
     }
 
-    // 手动计算累加值（代替 _.inc()）
-    const newWithdrawAble = (leaderData.withdrawAble || 0) + commission;
-    const newTotalOrder = (leaderData.totalOrder || 0) + 1;
+    const newWithdraw = (leader.withdrawAble || 0) + commission;
+    const newTotal = (leader.totalOrder || 0) + 1;
+    console.log("团长新收益：可提现=", newWithdraw, "总订单=", newTotal);
 
-    // 写入团长记录（不存在就创建，存在就覆盖）
     await db.collection('groupLeader').doc(leaderOpenid).set({
       data: {
         leaderOpenid,
-        withdrawAble: newWithdrawAble,
-        totalOrder: newTotalOrder,
+        withdrawAble: newWithdraw,
+        totalOrder: newTotal,
         pendingReward: 0,
-        createTime: leaderData.createTime || db.serverDate(),
+        createTime: leader.createTime || db.serverDate(),
         updateTime: db.serverDate()
       }
     });
 
-    // 5. 标记订单已发佣金
-    await db.collection('orders').doc(order._id).update({
-      data: { hasCommission: true }
-    });
+    // 11. 标记订单已发佣
+    await db.collection('orders').doc(order._id).update({ data: { hasCommission: true } });
+    console.log("订单标记为已发佣：", order._id);
 
-    console.log(`佣金发放成功！团长${leaderOpenid}，金额${commission}元`);
-  } else {
-    console.log('非首次支付，不发放佣金');
-  }
-}
+    console.log("===== payCallback 执行完成 =====");
+    return { errcode: 0, errmsg: 'success' };
 
-        return { errcode: 0, errmsg: 'success' };
-      } else {
-        console.error('未找到订单:', outTradeNo);
-      }
-    } catch (err) {
-      console.error('回调异常:', err);
-    }
-  } else {
-    console.log('支付失败，resultCode:', resultCode);
+  } catch (err) {
+    console.error("===== payCallback 执行出错 ====", err);
+    return { 
+      errcode: -1, 
+      errmsg: 'error', 
+      detail: err.message || err.toString() 
+    };
   }
-  return { errcode: -1, errmsg: 'fail' };
 };
