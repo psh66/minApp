@@ -291,9 +291,34 @@ Page({
     return `${year}-${month}-${day}`;
   },
 
-  // 新增：打开订单弹窗
-  // 新增：打开订单弹窗
-  // 新增：打开订单弹窗
+  // 新增：获取用户名称（通过openid）
+  async getUserNameByOpenid(openid) {
+    try {
+      const res = await usersCol.where({ _openid: openid }).get();
+      if (res.data.length > 0) {
+        return res.data[0].name || "未命名用户";
+      }
+      return "未知用户";
+    } catch (err) {
+      console.error("获取用户名失败：", err);
+      return "获取失败";
+    }
+  },
+
+  // 新增：解析结算状态
+  getSettlementStatusText(status) {
+    const statusMap = {
+      pending: "待结算",
+      settled: "已结算",
+      rejected: "已驳回",
+      canceled: "已取消",
+      "": "未设置",
+      undefined: "未设置",
+    };
+    return statusMap[status] || "未知状态";
+  },
+
+  // 新增：打开订单弹窗（核心修改：增加下单用户名和结算状态）
   async openOrderModal(e) {
     const userId = e.currentTarget.dataset.id;
     const userName = e.currentTarget.dataset.name || "未知用户";
@@ -302,7 +327,7 @@ Page({
     try {
       // 1. 先通过 userId 从 users 表中查询到对应的 openid
       const userRes = await usersCol.doc(userId).get();
-      const userOpenid = userRes.data.openid;
+      const userOpenid = userRes.data._openid; // 修正：users表中openid字段是 _openid
       console.log("查询到的用户openid：", userOpenid, userRes.data);
       if (!userOpenid) {
         wx.hideLoading();
@@ -321,17 +346,33 @@ Page({
       }));
       console.log("查询到的订单数据：", userOrders);
 
-      // 3. 加载推广订单：用 leaderOpenid 关联团长（核心修改：用 _id 替代 orderNo）
+      // 3. 加载推广订单：用 leaderOpenid 关联团长，补充下单用户名和结算状态
       const rewardRes = await rewardRecordsCol
         .where({ leaderOpenid: userOpenid })
         .orderBy("createTime", "desc")
         .get();
-      const userRewards = (rewardRes.data || []).map((item) => ({
-        ...item,
-        orderNo: item._id, // ✅ 用推广记录的 _id 作为订单编号显示
-        formatTime: this.formatDate(item.createTime || new Date()),
-      }));
-      console.log("查询到的推广订单数据：", userRewards);
+
+      // 3.1 批量获取下单用户名
+      const rewardList = rewardRes.data || [];
+      const userRewards = [];
+      for (let item of rewardList) {
+        // 获取下单用户名称
+        const buyerName = await this.getUserNameByOpenid(item.openid);
+        // 解析结算状态
+        const settlementStatusText = this.getSettlementStatusText(
+          item.settlementStatus,
+        );
+
+        userRewards.push({
+          ...item,
+          orderNo: item._id, // 用推广记录的 _id 作为订单编号显示
+          formatTime: this.formatDate(item.createTime || new Date()),
+          buyerName: buyerName, // 真实下单用户名称
+          settlementStatusText: settlementStatusText, // 结算状态文本
+          rawSettlementStatus: item.settlementStatus, // 原始结算状态（用于后续操作）
+        });
+      }
+      console.log("查询到的推广订单数据（含用户名和结算状态）：", userRewards);
 
       // 4. 更新数据
       this.setData({
@@ -495,6 +536,87 @@ Page({
               duration: 3000,
             });
           }
+        }
+      },
+    });
+  },
+
+  // 新增：修改推广订单结算状态（可选，用于管理员手动更新状态）
+  async updateSettlementStatus(e) {
+    const { recordId, userId } = e.currentTarget.dataset;
+    const currentStatus = e.currentTarget.dataset.status;
+
+    // 状态选项
+    const statusOptions = [
+      { value: "pending", text: "待结算" },
+      { value: "settled", text: "已结算" },
+      { value: "rejected", text: "已驳回" },
+      { value: "canceled", text: "已取消" },
+    ];
+
+    // 筛选当前可切换的状态
+    const options = statusOptions.filter(
+      (item) => item.value !== currentStatus,
+    );
+    const optionTexts = options.map((item) => item.text);
+
+    wx.showActionSheet({
+      itemList: optionTexts,
+      success: async (res) => {
+        const newStatus = options[res.tapIndex].value;
+        wx.showLoading({ title: "更新中..." });
+
+        try {
+          // 调用云函数更新结算状态
+          const cloudRes = await wx.cloud.callFunction({
+            name: "updateRecord",
+            data: {
+              recordId: recordId,
+              collectionName: "rewardRecords",
+              updateData: {
+                settlementStatus: newStatus,
+                settlementUpdateTime: new Date().toISOString(),
+              },
+            },
+          });
+
+          wx.hideLoading();
+          if (cloudRes.result.success) {
+            // 更新本地数据
+            const userRewards = this.data.userRewardRecordsMap[userId] || [];
+            const newRewards = userRewards.map((item) => {
+              if (item._id === recordId) {
+                return {
+                  ...item,
+                  settlementStatus: newStatus,
+                  settlementStatusText: this.getSettlementStatusText(newStatus),
+                  rawSettlementStatus: newStatus,
+                };
+              }
+              return item;
+            });
+
+            this.setData({
+              [`userRewardRecordsMap.${userId}`]: newRewards,
+            });
+
+            wx.showToast({
+              title: `状态已更新为${this.getSettlementStatusText(newStatus)}`,
+              icon: "success",
+            });
+          } else {
+            wx.showToast({
+              title: cloudRes.result.msg || "更新失败",
+              icon: "none",
+            });
+          }
+        } catch (err) {
+          wx.hideLoading();
+          console.error("更新结算状态失败：", err);
+          wx.showToast({
+            title: "更新失败，请重试",
+            icon: "none",
+          });
         }
       },
     });

@@ -112,26 +112,38 @@
       </view>
 
       <!-- 推广订单列表 -->
-      <view wx:if="{{activeOrderTab === 'reward'}}">
-        <view wx:if="{{userRewardRecordsMap[currentUserId] && userRewardRecordsMap[currentUserId].length > 0}}">
-          <view wx:for="{{userRewardRecordsMap[currentUserId]}}" wx:key="_id" style="padding: 15rpx; border-bottom: 1px solid #f5f5f5; display: flex; justify-content: space-between; align-items: center;">
-            <view style="flex: 1;">
-              <view style="font-size: {{22 * fontSizeMultiple}}rpx; color: #333;">订单编号：{{item.orderNo || '无'}}</view>
-              <view style="font-size: {{20 * fontSizeMultiple}}rpx; color: #666; margin-top: 5rpx;">创建时间：{{item.formatTime}}</view>
-              <view style="font-size: {{20 * fontSizeMultiple}}rpx; color: #666; margin-top: 5rpx;">佣金：{{item.rewardAmount || 0}} 元</view>
-            </view>
-            <button 
-  bindtap="deleteRewardOrder" 
-  data-record-id="{{item._id}}" 
-  data-user-id="{{currentUserId}}" 
-  style="background: #ff4d4f; color: white; border: none; border-radius: 4rpx; font-size: {{18 * fontSizeMultiple}}rpx; padding: 2rpx 8rpx;"
->
-  删除</button>
-          </view>
-        </view>
-        <view wx:else style="text-align: center; padding: 40rpx; font-size: {{24 * fontSizeMultiple}}rpx; color: #999;">暂无推广订单</view>
-      </view>
-
+    <!-- 推广订单列表 -->
+<view wx:if="{{activeOrderTab === 'reward'}}" class="order-list">
+  <view class="order-item header">
+    <view class="col">订单编号</view>
+    <view class="col">下单用户</view>
+    <view class="col">金额</view>
+    <view class="col">结算状态</view>
+    <view class="col">创建时间</view>
+    <view class="col">操作</view>
+  </view>
+  <view wx:for="{{userRewardRecordsMap[currentUserId]}}" wx:key="_id" class="order-item">
+    <view class="col">{{orderNo}}</view>
+    <view class="col">{{buyerName}}</view>
+    <view class="col">{{amount}}元</view>
+    <view class="col {{rawSettlementStatus === 'settled' ? 'status-success' : rawSettlementStatus === 'pending' ? 'status-pending' : 'status-danger'}}">
+      {{settlementStatusText}}
+      <!-- 可点击修改状态 -->
+      <button size="mini" bindtap="updateSettlementStatus" data-record-id="{{_id}}" data-user-id="{{currentUserId}}" data-status="{{rawSettlementStatus}}">
+        修改
+      </button>
+    </view>
+    <view class="col">{{formatTime}}</view>
+    <view class="col">
+      <button size="mini" type="warn" bindtap="deleteRewardOrder" data-record-id="{{_id}}" data-user-id="{{currentUserId}}">
+        删除
+      </button>
+    </view>
+  </view>
+  <view wx:if="{{!userRewardRecordsMap[currentUserId] || userRewardRecordsMap[currentUserId].length === 0}}" class="empty-tip">
+    暂无推广订单
+  </view>
+</view>
       <!-- 关闭按钮 -->
       <button bindtap="closeOrderModal" style="background: #f5f5f5; color: #333; border: none; border-radius: 8rpx; font-size: {{24 * fontSizeMultiple}}rpx; padding: 12rpx 0; margin-top: 20rpx; width: 100%;">关闭</button>
     </view>
