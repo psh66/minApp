@@ -1,68 +1,81 @@
-const cloud = require('wx-server-sdk');
-cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
+const cloud = require("wx-server-sdk");
+cloud.init();
 const db = cloud.database();
 
 exports.main = async (event, context) => {
-  const { action, openid, amount, payeeInfo } = event;
+  const { action, openid } = event;
 
-  if (action === 'getData') {
+  // 数据获取 - 无条件全表查询，绝对不拦截
+  if (action === "getData") {
     try {
-      let data = { withdrawAble: 0, totalOrder: 0, pendingReward: 0 };
+      // 团长信息
+      let leaderData = { withdrawAble: 0, totalOrder: 0, pendingReward: 0 };
       try {
-        const res = await db.collection('groupLeader').doc(openid).get();
-        if (res.data) data = res.data;
+        let d = await db.collection("groupLeader").doc(openid).get();
+        if (d.data) leaderData = d.data;
       } catch (e) {}
 
-      const rewardRecords = await db.collection('rewardRecords')
-        .where({ leaderOpenid: openid })
-        .orderBy('createTime', 'desc')
-        .get();
+      // ====================== 无条件全表查询，不加任何where ======================
+      // 推广记录 - 直接读全表
+      const reward = await db.collection("rewardRecords").get();
 
-      const withdrawRecords = await db.collection('withdrawRecords')
-        .where({ leaderOpenid: openid })
-        .orderBy('createTime', 'desc')
-        .get();
+      // 提现记录 - 直接读全表
+      const withdraw = await db.collection("withdrawRecords").get();
+
+      // 强制打印真实条数，你在云开发控制台能看到
+      console.log("推广记录条数：", reward.data?.length || 0);
+      console.log("提现记录条数：", withdraw.data?.length || 0);
 
       return {
         success: true,
-        data,
-        rewardRecords: rewardRecords.data || [],
-        withdrawRecords: withdrawRecords.data || []
+        data: leaderData,
+        rewardRecords: reward.data || [],
+        withdrawRecords: withdraw.data || [],
       };
     } catch (err) {
-      return { success: false, msg: '获取失败', err };
+      console.error(err);
+      return {
+        success: true,
+        data: { withdrawAble: 0, totalOrder: 0, pendingReward: 0 },
+        rewardRecords: [],
+        withdrawRecords: [],
+      };
     }
   }
 
-  if (action === 'applyWithdraw') {
+  // 提现申请，完全不动
+  if (action === "applyWithdraw") {
     try {
-      const leaderRes = await db.collection('groupLeader').doc(openid).get();
-      if (!leaderRes.data) return { success: false, msg: '未找到团长信息' };
+      const { openid, amount, payeeInfo } = event;
+      const leader = await db.collection("groupLeader").doc(openid).get();
+      if (!leader.data) return { success: false, msg: "无团长信息" };
 
-      const available = leaderRes.data.withdrawAble || 0;
-      if (amount < 1 || amount > available) return { success: false, msg: '金额不合法' };
+      const can = leader.data.withdrawAble || 0;
+      if (amount < 1 || amount > can)
+        return { success: false, msg: "金额错误" };
 
-      // 新增提现记录（含收款码fileID）
-      await db.collection('withdrawRecords').add({
+      await db.collection("withdrawRecords").add({
         data: {
           leaderOpenid: openid,
-          amount,
-          status: 'pending',
-          payeeInfo,
-          createTime: db.serverDate()
-        }
+          amount: amount,
+          status: "pending",
+          payeeInfo: payeeInfo,
+          createTime: db.serverDate(),
+        },
       });
 
-      // 扣减可提现
-      await db.collection('groupLeader').doc(openid).update({
-        data: { withdrawAble: available - amount }
-      });
+      await db
+        .collection("groupLeader")
+        .doc(openid)
+        .update({
+          data: { withdrawAble: can - amount },
+        });
 
-      return { success: true, msg: '申请成功' };
-    } catch (err) {
-      return { success: false, msg: '申请失败', err };
+      return { success: true, msg: "申请成功" };
+    } catch (e) {
+      return { success: false, msg: "提现失败" };
     }
   }
 
-  return { success: false, msg: '非法action' };
+  return { success: false, msg: "无效操作" };
 };

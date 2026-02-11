@@ -1,20 +1,35 @@
 <view class="container" style="padding:20rpx;background:linear-gradient(to bottom,#f0f9ff,#fff);min-height:100vh;">
 
-  <!-- 收益概览 -->
-  <view style="background:#fff;border-radius:16rpx;padding:25rpx;margin-bottom:25rpx;box-shadow:0 2rpx 8rpx rgba(0,0,0,0.05);">
-    <view style="font-size:28rpx;color:#666;margin-bottom:15rpx;">收益概览</view>
-    <view style="display:flex;justify-content:space-between;margin-bottom:10rpx;">
-      <view style="font-size:26rpx;color:#333;">待结算收益</view>
-      <view style="font-size:26rpx;color:#ff7d00;font-weight:500;">{{groupLeaderData.pendingReward||0}} 元</view>
-    </view>
-    <view style="display:flex;justify-content:space-between;margin-bottom:10rpx;">
-      <view style="font-size:26rpx;color:#333;">可提现金额</view>
-      <view style="font-size:26rpx;color:#07c160;font-weight:500;">{{groupLeaderData.withdrawAble||0}} 元</view>
-    </view>
-    <view style="display:flex;justify-content:space-between;">
-      <view style="font-size:26rpx;color:#333;">总推广订单</view>
-      <view style="font-size:26rpx;color:#1890ff;font-weight:500;">{{groupLeaderData.totalOrder||0}} 单</view>
-    </view>
+<!-- 收益概览 -->
+<view style="background:#fff;border-radius:16rpx;padding:25rpx;margin-bottom:25rpx;box-shadow:0 2rpx 8rpx rgba(0,0,0,0.05);">
+  <view style="font-size:28rpx;color:#666;margin-bottom:15rpx;">收益概览</view>
+  <view style="display:flex;justify-content:space-between;margin-bottom:10rpx;">
+    <view style="font-size:26rpx;color:#333;">待结算收益</view>
+    <view style="font-size:26rpx;color:#1890ff;font-weight:500;">{{groupLeaderData.pendingReward||0}} 元</view>
+  </view>
+  <view style="display:flex;justify-content:space-between;margin-bottom:10rpx;">
+    <view style="font-size:26rpx;color:#333;">可提现金额</view>
+    <view style="font-size:26rpx;color:#07c160;font-weight:500;">{{groupLeaderData.withdrawAble||0}} 元</view>
+  </view>
+  <view style="display:flex;justify-content:space-between;margin-bottom:10rpx;">
+    <view style="font-size:26rpx;color:#333;">审核中金额</view>
+    <view style="font-size:26rpx;color:#ff7d00;font-weight:500;">{{groupLeaderData.pendingWithdraw||0}} 元</view>
+  </view>
+  <view style="display:flex;justify-content:space-between;margin-bottom:10rpx;">
+    <view style="font-size:26rpx;color:#333;">已提现金额</view>
+    <view style="font-size:26rpx;color:#333;font-weight:500;">{{groupLeaderData.totalWithdrawn||0}} 元</view>
+  </view>
+  <view style="display:flex;justify-content:space-between;">
+    <view style="font-size:26rpx;color:#333;">总推广订单</view>
+    <view style="font-size:26rpx;color:#1890ff;font-weight:500;">{{groupLeaderData.totalOrder||0}} 单</view>
+  </view>
+</view>
+
+  <!-- 结算按钮（有未结算收益时显示） -->
+  <view wx:if="{{groupLeaderData.pendingReward>0}}" style="background:#fff;border-radius:16rpx;padding:25rpx;margin-bottom:25rpx;box-shadow:0 2rpx 8rpx rgba(0,0,0,0.05);">
+    <button bindtap="settleToWithdraw" style="width:100%;background:#ff7d00;color:white;border:none;border-radius:12rpx;font-size:30rpx;padding:18rpx 0;">
+      📥 结算待收益（转入可提现）
+    </button>
   </view>
 
   <!-- 分享 -->
@@ -24,23 +39,30 @@
     </button>
   </view>
 
-  <!-- 提现按钮（固定显示） -->
+  <!-- 提现按钮（有可提现金额时才可用） -->
   <view style="background:#fff;border-radius:16rpx;padding:25rpx;margin-bottom:25rpx;box-shadow:0 2rpx 8rpx rgba(0,0,0,0.05);">
-    <button bindtap="showWithdrawModal" style="width:100%;background:#07c160;color:white;border:none;border-radius:12rpx;font-size:30rpx;padding:18rpx 0;">
+    <button bindtap="showWithdrawModal" disabled="{{groupLeaderData.withdrawAble<=0}}" style="width:100%;background:{{groupLeaderData.withdrawAble>0?'#07c160':'#ccc'}};color:white;border:none;border-radius:12rpx;font-size:30rpx;padding:18rpx 0;">
       💰 申请提现（上传收款码）
     </button>
   </view>
 
   <!-- 推广记录 -->
-  <view style="background:#fff;border-radius:16rpx;padding:25rpx;margin-bottom:25rpx;box-shadow:0 2rpx 8rpx rgba(0,0,0,0.05);">
-    <view style="font-size:30rpx;font-weight:bold;color:#333;margin-bottom:20rpx;">推广订单记录</view>
-    <view wx:for="{{rewardRecords}}" wx:key="_id" style="padding:16rpx;border-bottom:1rpx solid #f5f5f5;">
-      <view style="font-size:28rpx;color:#333;">用户首次{{item.payType==='month'?'月付':'年付'}}</view>
-      <view style="font-size:24rpx;color:#666;margin:8rpx 0;">佣金：<text style="color:#ff7d00;">{{item.rewardAmount||0}} 元</text></view>
-      <view style="font-size:22rpx;color:#999;">{{item.formatTime}}</view>
+<view style="background:#fff;border-radius:16rpx;padding:25rpx;margin-bottom:25rpx;box-shadow:0 2rpx 8rpx rgba(0,0,0,0.05);">
+  <view style="font-size:30rpx;font-weight:bold;color:#333;margin-bottom:20rpx;">推广订单记录</view>
+  <view wx:for="{{rewardRecords}}" wx:key="_id" style="padding:16rpx;border-bottom:1rpx solid #f5f5f5;">
+    <view style="font-size:28rpx;color:#333;">用户首次{{item.payType==='month'?'月付':'年付'}}</view>
+    <view class="reward-title" style="font-size:26rpx;color:#666;margin:8rpx 0;">用户：{{item.userName}}</view>
+    <view style="font-size:24rpx;color:#666;margin:8rpx 0;">
+      佣金：<text style="color:#ff7d00;">{{item.rewardAmount||0}} 元</text>
+      <!-- 结算状态展示：已结算绿色，未结算橙色 -->
+      <text style="margin-left:20rpx;{{item.settleStatus === '已结算' ? 'color:#07c160;' : 'color:#ff7d00;'}}">
+        {{item.settleStatus}}
+      </text>
     </view>
-    <view wx:if="{{!rewardRecords.length}}" style="text-align:center;padding:40rpx;color:#999;font-size:26rpx;">暂无推广记录</view>
+    <view style="font-size:22rpx;color:#999;">{{item.formatTime}}</view>
   </view>
+  <view wx:if="{{!rewardRecords.length}}" style="text-align:center;padding:40rpx;color:#999;font-size:26rpx;">暂无推广记录</view>
+</view>
 
   <!-- 提现记录 -->
   <view style="background:#fff;border-radius:16rpx;padding:25rpx;margin-bottom:80rpx;box-shadow:0 2rpx 8rpx rgba(0,0,0,0.05);">

@@ -11,7 +11,7 @@ Page({
       showNotice: false,
       noticeContent: "",
     },
-    isSigned: false,
+    isSigned: false, // 签到状态初始值
     contactsList: [],
     showEmailDialog: false,
     showAddDialog: false,
@@ -172,7 +172,7 @@ Page({
         bindParentOpenid: "",
       };
     }
-     // 核心：接收并存储推广人 leaderOpenid，完成用户与团长的绑定
+    // 核心：接收并存储推广人 leaderOpenid，完成用户与团长的绑定
     if (options.leaderOpenid) {
       // 1. 存储到全局变量（支付时直接从全局获取）
       app.globalData.leaderOpenid = options.leaderOpenid;
@@ -199,15 +199,33 @@ Page({
     this.checkTrialExpired();
     this.loadTargetUserConfig(); // 加载同步配置
 
+    // ========== 修复后的签到状态初始化逻辑 ==========
     if (!this.data.isChildMode) {
-      const isSignedCache = wx.getStorageSync("isSignedToday");
-      this.setData({ isSigned: isSignedCache || false });
-      if (!isSignedCache) {
+      // 1. 读取带日期的签到缓存
+      const signCache = wx.getStorageSync("signCache") || {
+        date: "",
+        isSigned: false,
+      };
+      // 2. 获取今日日期
+      const today = this.formatDate(new Date());
+      // 3. 判断缓存是否为今日有效
+      let isSignedToday = false;
+      if (signCache.date === today) {
+        isSignedToday = signCache.isSigned;
+      } else {
+        // 非今日缓存，重置缓存为今日未签到
+        wx.setStorageSync("signCache", { date: today, isSigned: false });
+      }
+      // 4. 初始化页面签到状态
+      this.setData({ isSigned: isSignedToday });
+      // 5. 仅当今日未签到时，查数据库确认（避免重复查询）
+      if (!isSignedToday) {
         await this.checkSignStatus().catch((err) =>
           console.error("检查签到状态失败：", err),
         );
       }
     }
+    // ========== 修复结束 ==========
 
     this.getContactsList();
     this.checkUserEmail();
@@ -227,7 +245,16 @@ Page({
     this.checkUserEmail();
     this.loadTargetUserConfig(); // 刷新同步配置
     this.loadNoticeConfig(); // 加载通知配置
+
+    // ========== 修复：onShow 也同步更新签到状态 ==========
+    if (!this.data.isChildMode) {
+      await this.checkSignStatus().catch((err) =>
+        console.error("onShow检查签到状态失败：", err),
+      );
+    }
+    // ========== 修复结束 ==========
   },
+
   // 新增：加载后台通知配置
   async loadNoticeConfig() {
     try {
@@ -240,6 +267,7 @@ Page({
       console.error("加载通知配置失败：", err);
     }
   },
+
   calculateDistance(lat1, lon1, lat2, lon2) {
     const R = 6371;
     const radLat1 = (Math.PI * lat1) / 180;
@@ -628,52 +656,70 @@ Page({
 
       const isSigned = res.data.length > 0;
       this.setData({ isSigned }); // 未签到时 res.data 为空，isSigned 为 false
-      wx.setStorageSync("isSignedToday", isSigned);
+
+      // ========== 修复：同步更新带日期的缓存 ==========
+      const todayStr = this.formatDate(today);
+      wx.setStorageSync("signCache", {
+        date: todayStr,
+        isSigned: isSigned,
+      });
+      // ========== 修复结束 ==========
     } catch (err) {
       console.error("检查签到状态失败：", err);
       this.setData({ isSigned: false }); // 异常时强制设为未签到
     }
   },
 
- async handleSign() {
-  if (this.data.isChildMode) {
-    wx.showToast({ title: "子女模式下无法签到", icon: "none" });
-    return;
-  }
-  if (this.data.isTrialExpired) {
-    return wx.showToast({ title: "试用已到期，请升级正式版", icon: "none" });
-  }
-  if (this.data.isSigned) {
-    return wx.showToast({ title: "今日已签到", icon: "none" });
-  }
+  // ========== 修复后的签到处理逻辑 ==========
+  async handleSign() {
+    if (this.data.isChildMode) {
+      wx.showToast({ title: "子女模式下无法签到", icon: "none" });
+      return;
+    }
+    if (this.data.isTrialExpired) {
+      return wx.showToast({ title: "试用已到期，请升级正式版", icon: "none" });
+    }
+    if (this.data.isSigned) {
+      return wx.showToast({ title: "今日已签到", icon: "none" });
+    }
 
-  try {
-    const app = getApp();
-    // 1. 写入签到记录（原有逻辑，无问题）
-    await signCol.add({
-      data: {
-        _openid: app.globalData.openid,
-        signTime: new Date().getTime(), // 签到时间字段，数字型时间戳
-        createTime: db.serverDate(),
-      },
-    });
-    // ========== 新增核心逻辑：重置lastRemindDays为0 ==========
-    await db.collection("users").where({
-      _openid: app.globalData.openid // 根据openid匹配当前用户
-    }).update({
-      data: {
-        lastRemindDays: 0 // 签到成功，清空旧的提醒天数
-      }
-    });
-    // ==========================================================
-    this.setData({ isSigned: true });
-    wx.setStorageSync("isSignedToday", true);
-    wx.showToast({ title: "签到成功" });
-  } catch (err) {
-    console.error("签到失败：", err);
-    wx.showToast({ title: "签到失败，请重试", icon: "none" });
-  }
-},
+    try {
+      const app = getApp();
+      // 1. 写入签到记录（原有逻辑，无问题）
+      await signCol.add({
+        data: {
+          _openid: app.globalData.openid,
+          signTime: new Date().getTime(), // 签到时间字段，数字型时间戳
+          createTime: db.serverDate(),
+        },
+      });
+      // ========== 修复：存储带日期的签到缓存 ==========
+      const today = this.formatDate(new Date());
+      wx.setStorageSync("signCache", {
+        date: today,
+        isSigned: true,
+      });
+      // ==========================================================
+      // 重置lastRemindDays为0（原有逻辑）
+      await db
+        .collection("users")
+        .where({
+          _openid: app.globalData.openid, // 根据openid匹配当前用户
+        })
+        .update({
+          data: {
+            lastRemindDays: 0, // 签到成功，清空旧的提醒天数
+          },
+        });
+      // ==========================================================
+      this.setData({ isSigned: true });
+      wx.showToast({ title: "签到成功" });
+    } catch (err) {
+      console.error("签到失败：", err);
+      wx.showToast({ title: "签到失败，请重试", icon: "none" });
+    }
+  },
+  // ========== 修复结束 ==========
 
   async getContactsList() {
     const app = getApp();

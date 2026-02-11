@@ -58,7 +58,8 @@ Page({
       isChildMode: app.globalData.currentMode === "child",
       bindParentInfo: app.globalData.bindParentInfo || {},
       // 新增：从全局获取团长openid（分享绑定后存储）
-      leaderOpenid: app.globalData.leaderOpenid || wx.getStorageSync("leaderOpenid") || "",
+      leaderOpenid:
+        app.globalData.leaderOpenid || wx.getStorageSync("leaderOpenid") || "",
     });
 
     // 核心修复：动态初始化currentFontIndex（此时this已实例化，可正常访问data）
@@ -83,6 +84,7 @@ Page({
     const openid = app.globalData.openid;
     try {
       const res = await db.collection("adminUsers").where({ openid }).get();
+      console.log("管理员权限校验结果：", res);
       this.setData({ isAdmin: res.data.length > 0 });
     } catch (err) {
       console.error("校验管理员权限失败：", err);
@@ -471,89 +473,92 @@ Page({
 
   // 选择支付类型（月付/年付），发起支付（新增团长openid传递）
   // 选择支付类型（月付/年付），发起支付（新增团长openid传递）
-async choosePayType(e) {
-  const type = e.currentTarget.dataset.type;
-  const amount = type === "month" ? 0.1 : 0.1; // 测试金额，可根据实际修改
-  const app = getApp();
-  const payOpenid = this.data.isParentPay
-    ? app.globalData.bindParentOpenid
-    : app.globalData.openid;
-
-  // ===================== 调试日志 START =====================
-  console.log("===== 支付前检查团长信息 =====");
-  console.log("this.data.leaderOpenid =", this.data.leaderOpenid);
-  console.log("app.globalData.leaderOpenid =", app.globalData.leaderOpenid);
-  console.log("storage 里的 leaderOpenid =", wx.getStorageSync("leaderOpenid"));
-  console.log("payOpenid（被支付人）=", payOpenid);
-  console.log("payType =", type);
-  // ===================== 调试日志 END =====================
-
-  try {
-    wx.showLoading({ title: "创建订单中..." });
-
-    // 调用云函数创建支付订单（新增：传递团长openid）
-    const res = await wx.cloud.callFunction({
-      name: "createPayOrder",
-      data: {
-        openid: payOpenid,
-        payType: type,
-        amount,
-        payerOpenid: app.globalData.openid,
-        leaderOpenid: this.data.leaderOpenid || "", // 确保不会传 undefined
-      },
-    });
+  async choosePayType(e) {
+    const type = e.currentTarget.dataset.type;
+    const amount = type === "month" ? 0.1 : 0.1; // 测试金额，可根据实际修改
+    const app = getApp();
+    const payOpenid = this.data.isParentPay
+      ? app.globalData.bindParentOpenid
+      : app.globalData.openid;
 
     // ===================== 调试日志 START =====================
-    console.log("===== createPayOrder 返回结果 =====");
-    console.log("云函数返回:", res);
+    console.log("===== 支付前检查团长信息 =====");
+    console.log("this.data.leaderOpenid =", this.data.leaderOpenid);
+    console.log("app.globalData.leaderOpenid =", app.globalData.leaderOpenid);
+    console.log(
+      "storage 里的 leaderOpenid =",
+      wx.getStorageSync("leaderOpenid"),
+    );
+    console.log("payOpenid（被支付人）=", payOpenid);
+    console.log("payType =", type);
     // ===================== 调试日志 END =====================
 
-    wx.hideLoading();
+    try {
+      wx.showLoading({ title: "创建订单中..." });
 
-    if (res.result?.success) {
-      const payParams = res.result.payParams;
-      // 发起微信支付
-      wx.requestPayment({
-        ...payParams,
-        success: async () => {
-          console.log("===== 微信支付成功 =====");
-          // 支付成功，更新版本状态
-          if (this.data.isParentPay) {
-            await this.updateParentVersion(type, payOpenid);
-            wx.showToast({ title: "为父母升级/续费成功" });
-          } else {
-            await this.updateUserVersion(type);
-            const toastTitle = this.data.isFormalVersion
-              ? "续费成功"
-              : "升级成功";
-            wx.showToast({ title: toastTitle });
-          }
-          this.closePayDialog();
-          this.loadAllUserData(); // 重新加载数据，更新页面状态
-        },
-        fail: (payErr) => {
-          console.error("===== 支付失败 =====", payErr);
-          wx.showToast({
-            title: payErr.errMsg.includes("cancel")
-              ? "已取消支付"
-              : "支付失败",
-            icon: "none",
-          });
+      // 调用云函数创建支付订单（新增：传递团长openid）
+      const res = await wx.cloud.callFunction({
+        name: "createPayOrder",
+        data: {
+          openid: payOpenid,
+          payType: type,
+          amount,
+          payerOpenid: app.globalData.openid,
+          leaderOpenid: this.data.leaderOpenid || "", // 确保不会传 undefined
         },
       });
-    } else {
-      wx.showToast({
-        title: `创建订单失败：${res.result?.msg || "未知错误"}`,
-        icon: "none",
-        duration: 3000,
-      });
+
+      // ===================== 调试日志 START =====================
+      console.log("===== createPayOrder 返回结果 =====");
+      console.log("云函数返回:", res);
+      // ===================== 调试日志 END =====================
+
+      wx.hideLoading();
+
+      if (res.result?.success) {
+        const payParams = res.result.payParams;
+        // 发起微信支付
+        wx.requestPayment({
+          ...payParams,
+          success: async () => {
+            console.log("===== 微信支付成功 =====");
+            // 支付成功，更新版本状态
+            if (this.data.isParentPay) {
+              await this.updateParentVersion(type, payOpenid);
+              wx.showToast({ title: "为父母升级/续费成功" });
+            } else {
+              await this.updateUserVersion(type);
+              const toastTitle = this.data.isFormalVersion
+                ? "续费成功"
+                : "升级成功";
+              wx.showToast({ title: toastTitle });
+            }
+            this.closePayDialog();
+            this.loadAllUserData(); // 重新加载数据，更新页面状态
+          },
+          fail: (payErr) => {
+            console.error("===== 支付失败 =====", payErr);
+            wx.showToast({
+              title: payErr.errMsg.includes("cancel")
+                ? "已取消支付"
+                : "支付失败",
+              icon: "none",
+            });
+          },
+        });
+      } else {
+        wx.showToast({
+          title: `创建订单失败：${res.result?.msg || "未知错误"}`,
+          icon: "none",
+          duration: 3000,
+        });
+      }
+    } catch (err) {
+      wx.hideLoading();
+      console.error("===== 整体 catch 异常 =====", err);
+      wx.showToast({ title: "支付异常，请重试", icon: "none" });
     }
-  } catch (err) {
-    wx.hideLoading();
-    console.error("===== 整体 catch 异常 =====", err);
-    wx.showToast({ title: "支付异常，请重试", icon: "none" });
-  }
-},
+  },
 
   // 更新自己的版本状态（正式版/续费）
   async updateUserVersion(payType) {
@@ -857,7 +862,7 @@ async choosePayType(e) {
       this.loadAllUserData(); // 重新加载自己的数据
     }
   },
-    // 跳转到独立团长中心页面
+  // 跳转到独立团长中心页面
   goToGroupLeader() {
     wx.navigateTo({
       url: "/pages/groupLeader/index",
@@ -865,5 +870,5 @@ async choosePayType(e) {
         wx.showToast({ title: "团长中心页面不存在", icon: "none" });
       },
     });
-  }
+  },
 });

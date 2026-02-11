@@ -46,6 +46,8 @@
         </view>
         <view style="width: 23%; text-align: center; font-size: {{20 * fontSizeMultiple}}rpx; color: #666;">{{item.serviceStartTime}} - {{item.serviceEndTime}}</view>
         <view style="width: 20%; text-align: center; display: flex; flex-direction: column; gap: 8rpx;">
+          <!-- 新增：查看订单按钮 -->
+          <button bindtap="openOrderModal" data-id="{{item._id}}" data-name="{{item.name}}" style="background: #722ed1; color: white; border: none; border-radius: 8rpx; font-size: {{20 * fontSizeMultiple}}rpx; padding: 8rpx 0;">查看订单</button>
           <input 
             placeholder="输入天数" 
             type="number" 
@@ -65,10 +67,73 @@
     </view>
   </view>
 
-  <!-- 新增：团长提现审核入口（和原有样式统一） -->
+  <!-- 团长提现审核入口 -->
   <view style="background: white; border-radius: 16rpx; padding: 20rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
     <button bindtap="goToWithdrawAudit" style="background: #ff7d00; color: white; border: none; border-radius: 8rpx; font-size: {{28 * fontSizeMultiple}}rpx; padding: 15rpx 0; width: 100%;">
       💰 团长提现审核
     </button>
+  </view>
+
+  <!-- 新增：订单弹窗 -->
+  <view wx:if="{{showOrderModal}}" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 999;">
+    <view style="width: 90%; max-width: 800rpx; background: white; border-radius: 16rpx; padding: 20rpx; max-height: 80vh; overflow-y: auto;">
+      <!-- 弹窗头部 -->
+      <view style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20rpx; border-bottom: 1px solid #f5f5f5; padding-bottom: 15rpx;">
+        <view style="font-size: {{28 * fontSizeMultiple}}rpx; color: #333; font-weight: 500;">{{currentUserName}} 的订单</view>
+        <button bindtap="closeOrderModal" style="background: transparent; color: #999; border: none; font-size: {{30 * fontSizeMultiple}}rpx; padding: 0;">×</button>
+      </view>
+
+      <!-- 订单标签切换 -->
+      <view style="display: flex; margin-bottom: 15rpx;">
+        <button bindtap="switchOrderTab" data-tab="normal" style="flex: 1; background: {{activeOrderTab === 'normal' ? '#1890ff' : '#f5f5f5'}}; color: {{activeOrderTab === 'normal' ? 'white' : '#333'}}; border: none; border-radius: 8rpx 0 0 8rpx; font-size: {{24 * fontSizeMultiple}}rpx;">普通订单</button>
+        <button bindtap="switchOrderTab" data-tab="reward" style="flex: 1; background: {{activeOrderTab === 'reward' ? '#722ed1' : '#f5f5f5'}}; color: {{activeOrderTab === 'reward' ? 'white' : '#333'}}; border: none; border-radius: 0 8rpx 8rpx 0; font-size: {{24 * fontSizeMultiple}}rpx;">推广订单</button>
+      </view>
+
+      <!-- 普通订单列表 -->
+      <view wx:if="{{activeOrderTab === 'normal'}}">
+        <view wx:if="{{userOrdersMap[currentUserId] && userOrdersMap[currentUserId].length > 0}}">
+          <view wx:for="{{userOrdersMap[currentUserId]}}" wx:key="_id" style="padding: 15rpx; border-bottom: 1px solid #f5f5f5; display: flex; justify-content: space-between; align-items: center;">
+            <view style="flex: 1;">
+              <view style="font-size: {{22 * fontSizeMultiple}}rpx; color: #333;">订单编号：{{item.orderNo || '无'}}</view>
+              <view style="font-size: {{20 * fontSizeMultiple}}rpx; color: #666; margin-top: 5rpx;">创建时间：{{item.formatTime}}</view>
+              <view style="font-size: {{20 * fontSizeMultiple}}rpx; color: #666; margin-top: 5rpx;">金额：{{item.amount || 0}} 元</view>
+            </view>
+<button 
+  bindtap="deleteNormalOrder" 
+  data-order-id="{{item._id}}" 
+  data-user-id="{{currentUserId}}" 
+  style="background: #ff4d4f; color: white; border: none; border-radius: 4rpx; font-size: {{18 * fontSizeMultiple}}rpx; padding: 2rpx 8rpx;"
+>
+  删除
+</button>
+ </view>
+        </view>
+        <view wx:else style="text-align: center; padding: 40rpx; font-size: {{24 * fontSizeMultiple}}rpx; color: #999;">暂无普通订单</view>
+      </view>
+
+      <!-- 推广订单列表 -->
+      <view wx:if="{{activeOrderTab === 'reward'}}">
+        <view wx:if="{{userRewardRecordsMap[currentUserId] && userRewardRecordsMap[currentUserId].length > 0}}">
+          <view wx:for="{{userRewardRecordsMap[currentUserId]}}" wx:key="_id" style="padding: 15rpx; border-bottom: 1px solid #f5f5f5; display: flex; justify-content: space-between; align-items: center;">
+            <view style="flex: 1;">
+              <view style="font-size: {{22 * fontSizeMultiple}}rpx; color: #333;">订单编号：{{item.orderNo || '无'}}</view>
+              <view style="font-size: {{20 * fontSizeMultiple}}rpx; color: #666; margin-top: 5rpx;">创建时间：{{item.formatTime}}</view>
+              <view style="font-size: {{20 * fontSizeMultiple}}rpx; color: #666; margin-top: 5rpx;">佣金：{{item.rewardAmount || 0}} 元</view>
+            </view>
+            <button 
+  bindtap="deleteRewardOrder" 
+  data-record-id="{{item._id}}" 
+  data-user-id="{{currentUserId}}" 
+  style="background: #ff4d4f; color: white; border: none; border-radius: 4rpx; font-size: {{18 * fontSizeMultiple}}rpx; padding: 2rpx 8rpx;"
+>
+  删除</button>
+          </view>
+        </view>
+        <view wx:else style="text-align: center; padding: 40rpx; font-size: {{24 * fontSizeMultiple}}rpx; color: #999;">暂无推广订单</view>
+      </view>
+
+      <!-- 关闭按钮 -->
+      <button bindtap="closeOrderModal" style="background: #f5f5f5; color: #333; border: none; border-radius: 8rpx; font-size: {{24 * fontSizeMultiple}}rpx; padding: 12rpx 0; margin-top: 20rpx; width: 100%;">关闭</button>
+    </view>
   </view>
 </view>

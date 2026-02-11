@@ -13,20 +13,34 @@
   <!-- 提现记录列表 -->
   <view wx:for="{{recordList}}" wx:key="_id" class="record-card" style="background: #fff; border-radius: 16rpx; padding: 30rpx; margin-bottom: 20rpx;">
     <view style="font-size: 32rpx; font-weight: bold; margin-bottom: 16rpx;">
-      提现金额：{{item.amount}} 元
+      提现金额：{{item.amount || 0}} 元
     </view>
     <view style="font-size: 26rpx; color: #666; margin-bottom: 8rpx;">
-      团长openid：{{item.leaderOpenid}}
+      团长openid：{{item.leaderOpenid || '未知'}}
     </view>
-    <!-- 新增：显示收款信息 -->
+    <!-- 优化：拆分显示微信昵称 -->
     <view style="font-size: 26rpx; color: #666; margin-bottom: 8rpx;">
-      收款信息：{{item.payeeInfo}}
+      收款微信昵称：{{item.payeeInfo.wechatName || '未填写'}}
     </view>
+    <!-- 新增：收款码预览 -->
+    <view style="margin-bottom: 16rpx;">
+      <view style="font-size: 26rpx; color: #666; margin-bottom: 10rpx;">收款码：</view>
+      <view wx:if="{{item.payeeInfo.qrcodeFileID}}" 
+            bindtap="previewQrcode" 
+            data-qrcode="{{item.payeeInfo.qrcodeFileID}}"
+            style="width: 180rpx; height: 180rpx; border: 1rpx solid #eee; border-radius: 8rpx;">
+        <image src="{{item.payeeInfo.qrcodeFileID}}" 
+               style="width: 100%; height: 100%; object-fit: cover;" 
+               mode="widthFix"/>
+      </view>
+      <view wx:else style="font-size: 24rpx; color: #999; padding: 20rpx 0;">未上传收款码</view>
+    </view>
+    <!-- 优化：显示格式化后的时间 -->
     <view style="font-size: 26rpx; color: #666; margin-bottom: 8rpx;">
-      申请时间：{{item.createTime && item.createTime.toLocaleString()}}
+      申请时间：{{item.formatCreateTime}}
     </view>
     <view style="font-size: 26rpx; font-weight: bold; margin-bottom: 20rpx; color: {{item.status === 'pending' ? '#ff7d00' : (item.status === 'success' ? '#07c160' : '#ff4d4f')}}">
-      状态：{{statusMap[item.status]}}
+      状态：{{statusMap[item.status] || '未知'}}
     </view>
 
     <!-- 审核中显示操作按钮 -->
