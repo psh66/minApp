@@ -109,7 +109,7 @@ Page({
     });
   },
 
-  // 审核操作：修复关键bug+统一风格
+  // 审核操作：修复关键bug+统一风格+补充审核通过的金额更新
   async auditHandle(e) {
     const type = e.currentTarget.dataset.type;
     const recordId = e.currentTarget.dataset.id;
@@ -142,7 +142,16 @@ Page({
         wx.showLoading({ title: "处理中..." });
 
         try {
-          // 1. 更新提现记录状态（原有逻辑）
+          // 1. 先查询团长的记录ID（关键修复：不能直接用leaderOpenid当doc ID）
+          const leaderRes = await groupLeaderCol
+            .where({ leaderOpenid: leaderOpenid })
+            .get({ forceServer: true });
+          if (leaderRes.data.length === 0) {
+            throw new Error("未找到该团长的信息");
+          }
+          const leaderDocId = leaderRes.data[0]._id;
+
+          // 2. 更新提现记录状态（原有逻辑）
           await withdrawRecordCol.doc(recordId).update({
             data: {
               status: type === "pass" ? "success" : "fail",
@@ -150,13 +159,23 @@ Page({
             },
           });
 
-          // 2. 驳回时退回金额：修复关键bug（where条件从leaderOpenid改为doc精准查询）
-          if (type === "fail") {
-            // 原写法：where({ leaderOpenid }) → 可能匹配多条，风险高
-            // 优化：doc(leaderOpenid) 精准更新（和团长页查询逻辑一致）
-            await groupLeaderCol.doc(leaderOpenid).update({
+          // 3. 根据审核结果更新团长金额（核心修复）
+          if (type === "pass") {
+            // 审核通过：扣减审核中金额，增加已提现金额
+            await groupLeaderCol.doc(leaderDocId).update({
               data: {
-                withdrawAble: _.inc(amount), // 使用引入的_指令，更规范
+                pendingWithdraw: _.inc(-amount), // 审核中金额 -amount
+                totalWithdrawn: _.inc(amount), // 已提现金额 +amount
+                updateTime: db.serverDate(),
+              },
+            });
+          } else {
+            // 审核驳回：扣减审核中金额，退回可提现金额
+            await groupLeaderCol.doc(leaderDocId).update({
+              data: {
+                pendingWithdraw: _.inc(-amount), // 审核中金额 -amount
+                withdrawAble: _.inc(amount), // 可提现金额 +amount
+                updateTime: db.serverDate(),
               },
             });
           }
@@ -167,7 +186,7 @@ Page({
           this.getWithdrawList(); // 刷新列表
         } catch (err) {
           console.error("审核处理失败", err);
-          wx.showToast({ title: "处理失败", icon: "none" });
+          wx.showToast({ title: "处理失败：" + err.message, icon: "none" });
         } finally {
           wx.hideLoading();
         }

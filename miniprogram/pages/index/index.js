@@ -94,6 +94,12 @@ Page({
     currentFontIndex: 0,
     enableRemind: false,
     weatherList: [],
+    // 新增用药提醒相关字段
+    medicineRemindList: [],
+    currentMedicineTab: 0,
+    subscribeCount: 0,
+    medicineTmplId: "TTh86bIvpQrQjBZ2OSOcw4onxCo0Eey4wjTAtoXNl-E",
+    isSubscribing: false,
   },
 
   onShareAppMessage() {
@@ -230,6 +236,9 @@ Page({
     this.getContactsList();
     this.checkUserEmail();
     this.loadParentSignData();
+    // 新增：加载用药提醒列表
+    this.loadMedicineRemindList();
+    await this.loadSubscribeCount();
   },
 
   async onShow() {
@@ -253,6 +262,279 @@ Page({
       );
     }
     // ========== 修复结束 ==========
+
+    // 新增：每次显示页面时，都重新加载用药提醒列表
+    await this.loadMedicineRemindList();
+    await this.loadSubscribeCount();
+  },
+  // 加载订阅次数
+  async loadSubscribeCount() {
+    const app = getApp();
+    const targetOpenid = this.data.isChildMode
+      ? app.globalData.bindParentOpenid
+      : app.globalData.openid;
+
+    if (!targetOpenid) return;
+
+    try {
+      const res = await db
+        .collection("userSubscribe")
+        .where({
+          openid: targetOpenid,
+          tmplId: this.data.medicineTmplId,
+        })
+        .get();
+
+      this.setData({
+        subscribeCount: res.data.length > 0 ? res.data[0].remainCount : 0,
+      });
+    } catch (err) {
+      console.error("加载订阅次数失败", err);
+      this.setData({ subscribeCount: 0 });
+    }
+  },
+
+  // 开启/增加提醒次数（子女可给父母加）
+  async openNoticePermission() {
+    // 1. 先判断是否正在订阅，防止重复点击
+    if (this.data.isSubscribing) {
+      return wx.showToast({ title: "操作中，请稍候", icon: "none" });
+    }
+
+    if (this.data.isTrialExpired && !this.data.isChildMode) {
+      return wx.showToast({ title: "试用已到期，请升级正式版", icon: "none" });
+    }
+
+    // 2. 上锁，禁止重复调用
+    this.setData({ isSubscribing: true });
+
+    wx.requestSubscribeMessage({
+      tmplIds: [this.data.medicineTmplId],
+      success: async (res) => {
+        if (res[this.data.medicineTmplId] === "accept") {
+          // 授权成功 +1
+          await wx.cloud.callFunction({
+            name: "updateUserSubscribeCount",
+            data: {
+              openid: this.data.isChildMode
+                ? getApp().globalData.bindParentOpenid
+                : getApp().globalData.openid,
+              tmplId: this.data.medicineTmplId,
+              increment: 1,
+            },
+          });
+
+          await this.loadSubscribeCount();
+          wx.showToast({ title: "提醒次数+1", icon: "success" });
+        } else {
+          wx.showToast({ title: "已拒绝，无法推送提醒", icon: "none" });
+        }
+      },
+      fail: (err) => {
+        console.error("订阅失败", err);
+        wx.showToast({ title: "订阅失败", icon: "none" });
+      },
+      complete: () => {
+        // 3. 无论成功失败，都解锁
+        this.setData({ isSubscribing: false });
+      },
+    });
+  },
+  // 新增：用户手动点击开启通知权限（修复微信API必须tap触发的问题）
+  // openNoticePermission() {
+  //   const TEMPLATE_ID = "TTh86bIvpQrQjBZ2OSOcw4onxCo0Eey4wjTAtoXNl-E";
+  //   wx.requestSubscribeMessage({
+  //     tmplIds: [TEMPLATE_ID],
+  //     success: (res) => {
+  //       if (res[TEMPLATE_ID] === "accept") {
+  //         wx.showToast({ title: "通知权限申请成功", icon: "success" });
+  //       } else {
+  //         wx.showToast({
+  //           title: "通知权限已拒绝，将无法收到提醒",
+  //           icon: "none",
+  //         });
+  //       }
+  //     },
+  //     fail: (err) => {
+  //       console.error("申请通知权限失败：", err);
+  //       wx.showToast({ title: "申请通知权限失败", icon: "none" });
+  //     },
+  //   });
+  // },
+  // 加载用药提醒列表
+  async loadMedicineRemindList() {
+    try {
+      const app = getApp();
+      const targetOpenid = this.data.isChildMode
+        ? app.globalData.bindParentOpenid
+        : app.globalData.openid;
+
+      const remindRes = await db
+        .collection("medicineRemind")
+        .where({
+          parentOpenid: targetOpenid,
+          isEnable: true,
+        })
+        .get();
+
+      if (!remindRes.data || remindRes.data.length === 0) {
+        this.setData({ medicineRemindList: [] });
+        return;
+      }
+
+      // 简化逻辑：直接查询今日的服药记录（云函数已初始化）
+      const today = new Date();
+      const todayStart = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate(),
+      );
+
+      const medicineRemindList = [];
+      for (let remind of remindRes.data) {
+        const recordRes = await db
+          .collection("medicineRecord")
+          .where({
+            remindId: remind._id,
+            parentOpenid: targetOpenid,
+            createTime: db.command.gte(todayStart),
+          })
+          .orderBy("createTime", "desc")
+          .get();
+
+        // 直接读取云函数初始化的状态
+        let todayTakeStatus = "unfinished"; // 默认未服药（云函数已保证）
+        if (recordRes.data && recordRes.data.length > 0) {
+          todayTakeStatus = recordRes.data[0].takeStatus;
+        }
+
+        medicineRemindList.push({
+          ...remind,
+          todayTakeStatus,
+        });
+      }
+      this.setData({ medicineRemindList });
+    } catch (err) {
+      console.error("加载用药提醒失败：", err);
+      this.setData({ medicineRemindList: [] });
+    }
+  },
+
+  // 新增：跳转到用药提醒设置/管理页面
+  goToMedicineSetting() {
+    if (this.data.isTrialExpired && !this.data.isChildMode) {
+      return wx.showToast({ title: "试用已到期，请升级正式版", icon: "none" });
+    }
+
+    wx.navigateTo({
+      url: `/pages/medicine/index?isChildMode=${this.data.isChildMode}&targetOpenid=${
+        this.data.isChildMode
+          ? getApp().globalData.bindParentOpenid
+          : getApp().globalData.openid
+      }`,
+    });
+  },
+
+  // 父母端确认服药
+  async confirmTakeMedicine(e) {
+    if (this.data.isTrialExpired) {
+      return wx.showToast({ title: "试用已到期，请升级正式版", icon: "none" });
+    }
+
+    const remindId = e.currentTarget.dataset.remindId;
+    if (!remindId) return;
+
+    const app = getApp();
+    const targetOpenid = app.globalData.openid;
+    const now = new Date();
+    const currentTime = `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;
+
+    try {
+      wx.showLoading({ title: "保存中..." });
+
+      const today = this.formatDate(now);
+      const todayStart = new Date(today);
+      todayStart.setHours(0, 0, 0, 0);
+
+      // 2. 先查询今日记录（保留原有逻辑）
+      const recordRes = await db
+        .collection("medicineRecord")
+        .where({
+          remindId: remindId,
+          parentOpenid: targetOpenid,
+          createTime: db.command.gte(todayStart),
+        })
+        .get();
+
+      console.log("查询今日服药记录结果：", recordRes);
+
+      // 3. 核心修改：参考users表，用where条件更新（替代doc+ID）
+      if (recordRes.data && recordRes.data.length > 0) {
+        // ✅ 成功写法：和users表一致，用where条件更新
+        await db
+          .collection("medicineRecord")
+          .where({
+            remindId: remindId,
+            parentOpenid: targetOpenid,
+            createTime: db.command.gte(todayStart),
+          })
+          .update({
+            data: {
+              takeStatus: "completed",
+              takeTime: db.serverDate(),
+              remindTime: currentTime,
+              delayCount: 0,
+            },
+          });
+        console.log("服药记录更新成功（where条件更新）");
+      } else {
+        // 新增记录（原有逻辑保留）
+        await db.collection("medicineRecord").add({
+          data: {
+            remindId,
+            parentOpenid: targetOpenid,
+            takeStatus: "completed",
+            remindTime: currentTime,
+            pushNoticeTime: db.serverDate(),
+            takeTime: db.serverDate(),
+            delayCount: 0,
+          },
+        });
+        console.log("服药记录新增成功");
+      }
+
+      wx.hideLoading();
+      wx.showToast({ title: "已确认服药" });
+
+      // 重新加载列表
+      await this.loadMedicineRemindList();
+
+      // 推送子女（原有逻辑保留）
+      // const remindInfo = await db
+      //   .collection("medicineRemind")
+      //   .doc(remindId)
+      //   .get();
+      // const childOpenid = remindInfo.data?.childOpenid;
+      // const medicineName = remindInfo.data?.medicineName || "药品";
+      // const parentName = remindInfo.data?.parentName || "爸妈";
+
+      // if (childOpenid) {
+      //   wx.cloud.callFunction({
+      //     name: "sendMedicineNoticeToChild",
+      //     data: {
+      //       childOpenid,
+      //       medicineName,
+      //       takeTime: currentTime,
+      //       parentName,
+      //     },
+      //     complete: () => {},
+      //   });
+      // }
+    } catch (err) {
+      wx.hideLoading();
+      console.error("确认服药失败：", err);
+      wx.showToast({ title: "操作失败", icon: "none" });
+    }
   },
 
   // 新增：加载后台通知配置

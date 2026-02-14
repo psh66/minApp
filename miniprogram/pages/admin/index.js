@@ -37,7 +37,19 @@ Page({
     this.loadFontSizeSetting();
     this.loadNoticeConfig();
   },
-
+  copyOrderNo(e) {
+    const orderNo = e.currentTarget.dataset.orderNo;
+    wx.setClipboardData({
+      data: orderNo,
+      success: function () {
+        wx.showToast({
+          title: "复制成功",
+          icon: "success",
+          duration: 2000,
+        });
+      },
+    });
+  },
   // 校验管理员权限
   async checkAdminPermission() {
     const app = getApp();
@@ -54,7 +66,9 @@ Page({
       wx.navigateBack();
     }
   },
-
+  goToMedicineQuota() {
+    wx.navigateTo({ url: "/pages/medicine-quota/index" });
+  },
   // 加载通知配置
   async loadNoticeConfig() {
     console.log("===== 开始加载通知配置 =====");
@@ -304,16 +318,16 @@ Page({
       return "获取失败";
     }
   },
-
-  // 新增：解析结算状态
+  // 新增：解析结算状态（兼容空值）
   getSettlementStatusText(status) {
     const statusMap = {
       pending: "待结算",
       settled: "已结算",
       rejected: "已驳回",
       canceled: "已取消",
-      "": "未设置",
-      undefined: "未设置",
+      "": "待结算", // 空字符串默认待结算
+      undefined: "待结算", // undefined默认待结算
+      null: "待结算", // null默认待结算
     };
     return statusMap[status] || "未知状态";
   },
@@ -347,21 +361,22 @@ Page({
       console.log("查询到的订单数据：", userOrders);
 
       // 3. 加载推广订单：用 leaderOpenid 关联团长，补充下单用户名和结算状态
+      // 3. 加载推广订单：用 leaderOpenid 关联团长，补充下单用户名和结算状态
       const rewardRes = await rewardRecordsCol
         .where({ leaderOpenid: userOpenid })
         .orderBy("createTime", "desc")
         .get();
-
+      console.log("查询到的推广订单原始数据：", rewardRes.data);
       // 3.1 批量获取下单用户名
       const rewardList = rewardRes.data || [];
       const userRewards = [];
       for (let item of rewardList) {
         // 获取下单用户名称
-        const buyerName = await this.getUserNameByOpenid(item.openid);
-        // 解析结算状态
-        const settlementStatusText = this.getSettlementStatusText(
-          item.settlementStatus,
-        );
+        const buyerName = await this.getUserNameByOpenid(item.userOpenid);
+        // 核心：从数据库读取原始状态，空值时默认 'pending'
+        const dbStatus = item.settlementStatus || "pending";
+        // 解析结算状态文本
+        const settlementStatusText = this.getSettlementStatusText(dbStatus);
 
         userRewards.push({
           ...item,
@@ -369,11 +384,10 @@ Page({
           formatTime: this.formatDate(item.createTime || new Date()),
           buyerName: buyerName, // 真实下单用户名称
           settlementStatusText: settlementStatusText, // 结算状态文本
-          rawSettlementStatus: item.settlementStatus, // 原始结算状态（用于后续操作）
+          rawSettlementStatus: dbStatus, // 数据库中的原始状态（关键：用于后续更新）
         });
       }
-      console.log("查询到的推广订单数据（含用户名和结算状态）：", userRewards);
-
+      console.log("查询到的推广订单数据（含库里最新状态）：", userRewards);
       // 4. 更新数据
       this.setData({
         currentUserId: userId,
@@ -472,9 +486,30 @@ Page({
       },
     });
   },
-
+  // 新增：复制推广订单编号
+  copyRewardOrderNo(e) {
+    const orderNo = e.currentTarget.dataset.orderNo;
+    wx.setClipboardData({
+      data: orderNo,
+      success: function () {
+        wx.showToast({
+          title: "订单编号复制成功",
+          icon: "success",
+          duration: 2000,
+        });
+      },
+      fail: function () {
+        wx.showToast({
+          title: "复制失败",
+          icon: "none",
+          duration: 2000,
+        });
+      },
+    });
+  },
   // 替换：删除推广订单（通过云函数）
   async deleteRewardOrder(e) {
+    console.log("删除推广订单事件触发，数据：", e.currentTarget.dataset);
     const { recordId, userId } = e.currentTarget.dataset;
     if (!recordId || !userId) {
       wx.showToast({

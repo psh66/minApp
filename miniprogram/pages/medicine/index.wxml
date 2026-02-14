@@ -1,0 +1,142 @@
+<view class="container" style="padding:20rpx;min-height:100vh;background:#f8f8f8;">
+  <view style="font-size:{{34*fontSizeMultiple}}rpx;color:#333;font-weight:500;margin-bottom:10rpx;">
+    {{isChildMode?'管理父母用药提醒':'设置我的用药提醒'}} 
+  </view>
+  <view style="color: #1890ff; font-size: {{24 * fontSizeMultiple}}rpx;margin-bottom:20rpx;">【用药提醒机制：到点提醒一次，10 分钟后二次提醒，20 分钟后最后一次提醒，共 3 次。】</view>
+  <!-- 添加用药提醒按钮 -->
+  <button bindtap="showAddMedicineDialog" style="width:100%;background:linear-gradient(to right,#07c160,#06b358);color:white;border:none;padding:18rpx 0;border-radius:12rpx;font-size:{{30*fontSizeMultiple}}rpx;margin-bottom:20rpx;">
+    + 添加用药提醒
+  </button>
+
+  <!-- 用药提醒列表 -->
+<view wx:for="{{medicineList}}" wx:key="_id" style="background:white;border-radius:12rpx;padding:20rpx;margin-bottom:15rpx;box-shadow:0 2rpx 8rpx rgba(0,0,0,0.05);">
+    <view style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15rpx;">
+      <view style="font-size:{{fontSizeMultiple*32}}rpx;color:#333;font-weight:500;">{{item.medicineName}}</view>
+      <view style="display:flex;gap:10rpx;">
+        <button bindtap="editMedicine" data-item="{{item}}" 
+                style="width:120rpx;background:#1890ff;color:white;border:none;padding:8rpx 0;border-radius:8rpx;font-size:{{fontSizeMultiple*24}}rpx;">
+          编辑
+        </button>
+        <button bindtap="deleteMedicine" data-id="{{item._id}}" 
+                style="width:120rpx;background:#ff4d4f;color:white;border:none;padding:8rpx 0;border-radius:8rpx;font-size:{{fontSizeMultiple*24}}rpx;">
+          删除
+        </button>
+      </view>
+    </view>
+    <view style="font-size:{{fontSizeMultiple*26}}rpx;color:#666;margin-bottom:8rpx;">
+      剂量：{{item.dose}} | 服用说明：{{item.takeTimeDesc||'无'}}
+    </view>
+    <!-- 提醒时间：所有内容在同一行 -->
+    <view style="font-size:{{fontSizeMultiple*26}}rpx;color:#666;margin-bottom:8rpx;display:flex;align-items:center;">
+      提醒时间：
+      <view wx:for="{{item.remindTime}}" wx:key="*this" wx:for-item="time" >
+        {{time}}<text wx:if="{{index !== item.remindTime.length - 1}}">、</text>
+      </view>
+      <view wx:if="{{!item.remindTime || item.remindTime.length === 0}}">未设置</view>
+    </view>
+    <!-- 重复周期：所有内容在同一行 -->
+    <view style="font-size:{{fontSizeMultiple*26}}rpx;color:#666;display:flex;align-items:center;">
+      重复周期：
+      <view wx:for="{{item.repeatDays}}" wx:key="*this" wx:for-item="day">
+        {{day}}<text wx:if="{{index !== item.repeatDays.length - 1}}">、</text>
+      </view>
+      <view wx:if="{{!item.repeatDays || item.repeatDays.length === 0}}">未设置</view>
+    </view>
+</view>
+
+  <!-- 空列表提示 -->
+  <view wx:if="{{medicineList.length===0}}" style="text-align:center;padding:50rpx 0;color:#999;font-size:{{28*fontSizeMultiple}}rpx;">
+    暂无用药提醒计划，点击上方按钮添加
+  </view>
+
+  <!-- 添加/编辑用药提醒弹窗 -->
+  <view wx:if="{{showMedicineDialog}}" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:999;display:flex;align-items:center;justify-content:center;">
+    <view style="width:85%;background:white;border-radius:16rpx;padding:30rpx;box-shadow:0 6rpx 16rpx rgba(0,0,0,0.1);">
+      <view style="font-size:{{34*fontSizeMultiple}}rpx;font-weight:bold;text-align:center;margin-bottom:30rpx;color:#333;">
+        {{editMedicineItem?'编辑用药提醒':'添加用药提醒'}}
+      </view>
+      
+      <view style="margin-bottom:20rpx;">
+        <view style="font-size:{{28*fontSizeMultiple}}rpx;color:#333;margin-bottom:8rpx;">药品名称</view>
+        <input 
+          placeholder="如：降压药、感冒药" 
+          value="{{medicineForm.medicineName}}" 
+          bindinput="onMedicineFormChange" 
+          data-key="medicineName"
+          style="font-size:{{28*fontSizeMultiple}}rpx;border:1px solid #eee;border-radius:8rpx;padding:12rpx;"
+        />
+      </view>
+
+      <view style="margin-bottom:20rpx;">
+        <view style="font-size:{{28*fontSizeMultiple}}rpx;color:#333;margin-bottom:8rpx;">服用剂量</view>
+        <input 
+          placeholder="如：1片、2粒、10ml" 
+          value="{{medicineForm.dose}}" 
+          bindinput="onMedicineFormChange" 
+          data-key="dose"
+          style="font-size:{{28*fontSizeMultiple}}rpx;border:1px solid #eee;border-radius:8rpx;padding:12rpx;"
+        />
+      </view>
+
+      <view style="margin-bottom:20rpx;">
+        <view style="font-size:{{28*fontSizeMultiple}}rpx;color:#333;margin-bottom:8rpx;">服用说明</view>
+        <input 
+          placeholder="如：饭后服用、空腹服用" 
+          value="{{medicineForm.takeTimeDesc}}" 
+          bindinput="onMedicineFormChange" 
+          data-key="takeTimeDesc"
+          style="font-size:{{28*fontSizeMultiple}}rpx;border:1px solid #eee;border-radius:8rpx;padding:12rpx;"
+        />
+      </view>
+
+      <!-- 自定义时间选择器 -->
+      <view style="margin-bottom:20rpx;">
+        <view style="font-size:{{28*fontSizeMultiple}}rpx;color:#333;margin-bottom:8rpx;">提醒时间（可添加多个）</view>
+        
+        <!-- 时间选择器按钮 -->
+        <view style="display:flex;gap:10rpx;margin-bottom:10rpx;">
+          <picker mode="time" title="选择提醒时间" 
+            value="{{currentTime}}" 
+            bindchange="confirmTimeSelect"
+            bindcancel="cancelTimeSelect"
+            start="00:00"
+            end="23:59">
+            <button style="flex:1;background:#f5f5f5;color:#333;border:none;padding:12rpx 0;border-radius:8rpx;font-size:{{26*fontSizeMultiple}}rpx;">
+              选择时间（当前：{{currentTime}}）
+            </button>
+          </picker>
+          <button bindtap="addRemindTime" style="flex:0 0 120rpx;background:#1890ff;color:white;border:none;padding:12rpx 0;border-radius:8rpx;font-size:{{26*fontSizeMultiple}}rpx;">
+            添加
+          </button>
+        </view>
+
+        <!-- 已选时间列表 -->
+        <view style="display:flex;flex-wrap:wrap;gap:10rpx;margin-top:10rpx;">
+          <view wx:for="{{medicineForm.remindTime}}" wx:key="index" 
+            style="padding:8rpx 15rpx;border-radius:8rpx;font-size:{{24*fontSizeMultiple}}rpx;background:#e6f7ff;color:#1890ff;display:flex;align-items:center;gap:8rpx;">
+            {{item}}
+            <text bindtap="removeRemindTime" data-index="{{index}}" style="font-size:{{22*fontSizeMultiple}}rpx;color:#ff4d4f;">×</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- 重复周期（样式实时更新） -->
+      <view style="margin-bottom:30rpx;">
+        <view style="font-size:{{28*fontSizeMultiple}}rpx;color:#333;margin-bottom:8rpx;">重复周期</view>
+        <view style="display:flex;flex-wrap:wrap;gap:10rpx;">
+          <view wx:for="{{weekOptions}}" wx:key="value" 
+                bindtap="toggleWeekOption" 
+                data-value="{{item.value}}"
+                style="padding:10rpx 15rpx;border-radius:8rpx;font-size:{{24*fontSizeMultiple}}rpx;{{item.selected?'background:#1890ff;color:white;':'background:#f5f5f5;color:#333;'}}">
+            {{item.label}}
+          </view>
+        </view>
+      </view>
+
+      <view style="display:flex;gap:20rpx;">
+        <button bindtap="saveMedicineRemind" style="flex:1;background:#07c160;color:white;border:none;padding:15rpx 0;border-radius:8rpx;font-size:{{32*fontSizeMultiple}}rpx;">保存</button>
+        <button bindtap="cancelMedicineDialog" style="flex:1;background:#f5f5f5;color:#333;border:none;padding:15rpx 0;border-radius:8rpx;font-size:{{32*fontSizeMultiple}}rpx;">取消</button>
+      </view>
+    </view>
+  </view>
+</view>

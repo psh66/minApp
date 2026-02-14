@@ -12,7 +12,9 @@
     </view>
     <button bindtap="saveNoticeConfig" style="background: #1890ff; color: white; border: none; border-radius: 8rpx; font-size: {{26 * fontSizeMultiple}}rpx; padding: 12rpx 0; margin-top: 15rpx;">保存通知配置</button>
   </view>
-
+  <view style="background: white; border-radius: 16rpx; padding: 20rpx; margin-bottom: 20rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);" bindtap="goToMedicineQuota">
+   <text>🔔 用药提醒次数管理</text>
+  </view>
   <!-- 用户管理区域 -->
   <view style="background: white; border-radius: 16rpx; padding: 20rpx; margin-bottom: 20rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
     <view style="font-size: {{34 * fontSizeMultiple}}rpx; color: #333; font-weight: 500; margin-bottom: 20rpx;">用户管理后台</view>
@@ -98,21 +100,20 @@
               <view style="font-size: {{20 * fontSizeMultiple}}rpx; color: #666; margin-top: 5rpx;">创建时间：{{item.formatTime}}</view>
               <view style="font-size: {{20 * fontSizeMultiple}}rpx; color: #666; margin-top: 5rpx;">金额：{{item.amount || 0}} 元</view>
             </view>
-<button 
-  bindtap="deleteNormalOrder" 
-  data-order-id="{{item._id}}" 
-  data-user-id="{{currentUserId}}" 
-  style="background: #ff4d4f; color: white; border: none; border-radius: 4rpx; font-size: {{18 * fontSizeMultiple}}rpx; padding: 2rpx 8rpx;"
->
-  删除
-</button>
- </view>
+            <button 
+              bindtap="deleteNormalOrder" 
+              data-order-id="{{item._id}}" 
+              data-user-id="{{currentUserId}}" 
+              style="background: #ff4d4f; color: white; border: none; border-radius: 4rpx; font-size: {{18 * fontSizeMultiple}}rpx; padding: 2rpx 8rpx;"
+            >
+              删除
+            </button>
+          </view>
         </view>
         <view wx:else style="text-align: center; padding: 40rpx; font-size: {{24 * fontSizeMultiple}}rpx; color: #999;">暂无普通订单</view>
       </view>
 
       <!-- 推广订单列表 -->
-    <!-- 推广订单列表 -->
 <view wx:if="{{activeOrderTab === 'reward'}}" class="order-list">
   <view class="order-item header">
     <view class="col">订单编号</view>
@@ -123,19 +124,25 @@
     <view class="col">操作</view>
   </view>
   <view wx:for="{{userRewardRecordsMap[currentUserId]}}" wx:key="_id" class="order-item">
-    <view class="col">{{orderNo}}</view>
-    <view class="col">{{buyerName}}</view>
-    <view class="col">{{amount}}元</view>
-    <view class="col {{rawSettlementStatus === 'settled' ? 'status-success' : rawSettlementStatus === 'pending' ? 'status-pending' : 'status-danger'}}">
-      {{settlementStatusText}}
-      <!-- 可点击修改状态 -->
-      <button size="mini" bindtap="updateSettlementStatus" data-record-id="{{_id}}" data-user-id="{{currentUserId}}" data-status="{{rawSettlementStatus}}">
+    <!-- 绑定数据库中的原始状态，确保和库里一致 -->
+    <view class="col">{{item.orderNo}}</view>
+    <view class="col">{{item.buyerName}}</view>
+    <view class="col">{{item.amount}}元</view>
+    <view class="col {{item.rawSettlementStatus === 'settled' ? 'status-success' : item.rawSettlementStatus === 'pending' ? 'status-pending' : 'status-danger'}}">
+      {{item.settlementStatusText}}
+      <!-- 传递库里的原始状态，避免本地状态不一致 -->
+      <button size="mini" bindtap="updateSettlementStatus" 
+        data-record-id="{{item._id}}" 
+        data-user-id="{{currentUserId}}" 
+        data-status="{{item.rawSettlementStatus}}">
         修改
       </button>
     </view>
-    <view class="col">{{formatTime}}</view>
+    <view class="col">{{item.formatTime}}</view>
     <view class="col">
-      <button size="mini" type="warn" bindtap="deleteRewardOrder" data-record-id="{{_id}}" data-user-id="{{currentUserId}}">
+      <button size="mini" type="warn" bindtap="deleteRewardOrder" 
+        data-record-id="{{item._id}}" 
+        data-user-id="{{currentUserId}}">
         删除
       </button>
     </view>
@@ -144,6 +151,7 @@
     暂无推广订单
   </view>
 </view>
+
       <!-- 关闭按钮 -->
       <button bindtap="closeOrderModal" style="background: #f5f5f5; color: #333; border: none; border-radius: 8rpx; font-size: {{24 * fontSizeMultiple}}rpx; padding: 12rpx 0; margin-top: 20rpx; width: 100%;">关闭</button>
     </view>

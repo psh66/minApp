@@ -32,7 +32,76 @@
       </button>
     </view>
   </view>
+<view style="margin-bottom: 25rpx;">
+  <view style="font-size: {{32 * fontSizeMultiple}}rpx; color: #333; margin-bottom: 20rpx; display: flex; justify-content: space-between; align-items: center;">
+    <text>{{isChildMode ? '父母用药提醒' : '我的用药提醒'}}</text>
+    <view style="display: flex; gap: 10rpx; align-items: center;">
+        <button bindtap="goToMedicineSetting" 
+        style="background: #1890ff; color: white; border: none; padding: 12rpx 20rpx; border-radius: 6rpx; font-size: {{22 * fontSizeMultiple}}rpx; line-height:1.2; height:auto; white-space:nowrap;width: 160rpx;">
+       {{isChildMode ? '管理提醒' : '设置提醒'}}
+      </button>
+      <button bindtap="openNoticePermission" 
+        style="background: #ff7d00; color: white; border: none; padding: 12rpx 20rpx; border-radius: 6rpx; font-size: {{22 * fontSizeMultiple}}rpx; line-height:1.2; height:auto; white-space:nowrap;width: 160rpx;">
+        {{subscribeCount > 0 ? '增加次数' : '开启提醒'}}
+      </button>
+      
+      <view wx:if="{{subscribeCount > 0}}" style="font-size: {{26 * fontSizeMultiple}}rpx; color: #666;display: flex; align-items: center;">
+        剩余{{subscribeCount}}次
+      </view>
+    </view>
+  </view>
 
+  <view style="background: white; border-radius: 12rpx; padding: 20rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
+    <view wx:if="{{!medicineRemindList || medicineRemindList.length === 0}}" 
+      style="text-align: center; padding: 30rpx 0; color: #999; font-size: {{28 * fontSizeMultiple}}rpx;">
+      📅 暂无用药提醒
+      <view style="margin-top: 10rpx; font-size: {{24 * fontSizeMultiple}}rpx;">
+        {{isChildMode ? '点击右侧管理提醒添加' : '点击右侧设置提醒添加'}}
+      </view>
+    </view>
+
+    <view wx:else>
+      <view wx:for="{{medicineRemindList}}" wx:key="_id" 
+        style="padding: 15rpx 0; border-bottom: {{index === medicineRemindList.length - 1 ? 'none' : '1px solid #f5f5f5'}};">
+        
+        <view style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8rpx;">
+          <view style="font-size: {{30 * fontSizeMultiple}}rpx; color: #333; font-weight: 500;">{{item.medicineName}}</view>
+          <view style="font-size: {{24 * fontSizeMultiple}}rpx; color: {{item.todayTakeStatus === 'completed' ? '#07c160' : item.todayTakeStatus === 'unfinished' ? '#ff4d4f' : '#ff7d00'}};">
+            {{item.todayTakeStatus === 'completed' ? '今日已服药' : item.todayTakeStatus === 'unfinished' ? '待服药' : '已延迟'}}
+          </view>
+        </view>
+
+        <view style="font-size: {{24 * fontSizeMultiple}}rpx; color: #666; margin-bottom: 5rpx;">
+          剂量：{{item.dose || '未设置'}} | 说明：{{item.takeTimeDesc || '无'}}
+        </view>
+
+        <!-- 修复核心：先转数组→判断长度→处理默认值 -->
+        <view style="font-size: {{24 * fontSizeMultiple}}rpx; color: #666;">
+           <view style="font-size:{{fontSizeMultiple*26}}rpx;color:#666;margin-bottom:8rpx;display:flex;align-items:center;">
+      提醒时间：
+      <view wx:for="{{item.remindTime}}" wx:key="*this" wx:for-item="time" >
+        {{time}}<text wx:if="{{index !== item.remindTime.length - 1}}">、</text>
+      </view>
+      <view wx:if="{{!item.remindTime || item.remindTime.length === 0}}">未设置</view>
+    </view>
+      <view style="font-size:{{fontSizeMultiple*26}}rpx;color:#666;display:flex;align-items:center;">
+      重复周期：
+      <view wx:for="{{item.repeatDays}}" wx:key="*this" wx:for-item="day">
+        {{day}}<text wx:if="{{index !== item.repeatDays.length - 1}}">、</text>
+      </view>
+      <view wx:if="{{!item.repeatDays || item.repeatDays.length === 0}}">未设置</view>
+    </view>
+        </view>
+        <view wx:if="{{!isChildMode && item.todayTakeStatus !== 'completed'}}" style="margin-top: 10rpx;">
+          <button bindtap="confirmTakeMedicine" data-remind-id="{{item._id}}" 
+            style="background: #07c160; color: white; border: none; padding: 8rpx 15rpx; border-radius: 8rpx; font-size: {{24 * fontSizeMultiple}}rpx;">
+            我已服药
+          </button>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>
   <!-- 子女模式：父母签到记录模块 -->
   <view wx:if="{{isChildMode}}" style="margin-bottom: 25rpx;">
     <view style="font-size: {{32 * fontSizeMultiple}}rpx; color: #333; margin-bottom: 10rpx;">父母签到记录</view>

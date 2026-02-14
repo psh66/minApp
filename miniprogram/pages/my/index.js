@@ -475,7 +475,7 @@ Page({
   // 选择支付类型（月付/年付），发起支付（新增团长openid传递）
   async choosePayType(e) {
     const type = e.currentTarget.dataset.type;
-    const amount = type === "month" ? 0.1 : 0.1; // 测试金额，可根据实际修改
+    const amount = type === "month" ? 3 : 20; // 测试金额，可根据实际修改
     const app = getApp();
     const payOpenid = this.data.isParentPay
       ? app.globalData.bindParentOpenid

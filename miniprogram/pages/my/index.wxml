@@ -12,7 +12,6 @@
         </view>
         <view style="font-size: {{24 * fontSizeMultiple}}rpx; color: {{parentPayInfo.isTrialExpired ? '#ff4d4f' : '#666'}}; margin-top: 4rpx;">
           {{parentPayInfo.isTrialExpired ? '父母账号试用已到期' : (parentPayInfo.isFormalVersion ? '父母账号为正式会员' : '父母账号为试用会员（剩余' + parentPayInfo.remainingTrialDays + '天）')}}
-          <text style="color: #999; font-size: {{20 * fontSizeMultiple}}rpx;">【付费后概不退款】</text>
         </view>
       </view>
     </view>
@@ -24,7 +23,6 @@
         <view style="font-size: {{34 * fontSizeMultiple}}rpx; color: #333; font-weight: 500;">{{userInfo.name || '未设置昵称'}}</view>
         <view style="font-size: {{24 * fontSizeMultiple}}rpx; color: {{isTrialExpired ? '#ff4d4f' : '#666'}}; margin-top: 4rpx;">
           {{isTrialExpired ? '试用已到期' : (isFormalVersion ? '正式会员' : '试用会员（剩余' + remainingTrialDays + '天）')}}
-          <text style="color: #999; font-size: {{20 * fontSizeMultiple}}rpx;">【付费后概不退款】</text>
         </view>
       </view>
     </view>

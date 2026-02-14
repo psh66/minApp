@@ -112,7 +112,7 @@ exports.main = async (event, context) => {
     console.log("纯新用户首次付款，发放团长佣金");
     const commission = payType === "month" ? 1 : 5;
 
-    // 1. 写入推广佣金记录（rewardRecords）→ 这里不需要加 hasCommission
+    // 1. 写入推广佣金记录（rewardRecords）→ 补充 settleStatus 字段
     await db.collection("rewardRecords").add({
       data: {
         userOpenid: openid,
@@ -120,18 +120,20 @@ exports.main = async (event, context) => {
         payType: payType,
         rewardAmount: commission,
         orderNo: outTradeNo, // 关联订单号，方便排查
+        settleStatus: "unsettled", // 核心补充：初始未结算（和团长页面匹配）
         createTime: db.serverDate(),
+        updateTime: db.serverDate(),
       },
     });
 
-    // 2. 更新团长数据：累加，不覆盖
+    // 2. 更新团长数据：累加，不覆盖（补充 totalCommission 字段，用于团长页面计算）
     const leaderRes = await db
       .collection("groupLeader")
       .where({ leaderOpenid: leaderOpenid })
       .get();
 
     if (leaderRes.data.length > 0) {
-      // 已有记录 → 累加待结算收益和订单数
+      // 已有记录 → 累加待结算收益、订单数、总佣金
       await db
         .collection("groupLeader")
         .doc(leaderRes.data[0]._id)
@@ -139,17 +141,21 @@ exports.main = async (event, context) => {
           data: {
             pendingReward: _.inc(commission), // 待结算收益+佣金
             totalOrder: _.inc(1), // 总订单数+1
+            totalCommission: _.inc(commission), // 补充：总佣金累加（团长页面计算用）
             updateTime: db.serverDate(),
           },
         });
     } else {
-      // 无记录 → 创建新记录
+      // 无记录 → 创建新记录（补充 totalCommission 字段）
       await db.collection("groupLeader").add({
         data: {
           leaderOpenid: leaderOpenid,
           pendingReward: commission, // 初始待结算收益
           withdrawAble: 0, // 可提现金额初始为0
           totalOrder: 1, // 初始订单数
+          totalCommission: commission, // 补充：总佣金初始值
+          totalWithdrawn: 0, // 已提现金额初始为0
+          pendingWithdraw: 0, // 审核中金额初始为0
           createTime: db.serverDate(),
           updateTime: db.serverDate(),
         },

@@ -56,12 +56,9 @@ Page({
     }
   },
 
-  // 核心：加载团长所有数据（含状态计算）
-  // 核心：加载团长所有数据（自动计算金额 + 显示下单用户名）
-  // 核心：加载团长所有数据（自动计算金额 + 显示下单用户名）
+  // 核心：加载团长所有数据（修正金额读取逻辑）
   async loadGroupLeaderData() {
     const targetOpenid = app.globalData.openid;
-    console.log("加载团长数据，目标openid：", targetOpenid);
     if (!targetOpenid) {
       wx.showToast({ title: "未获取到用户信息", icon: "none" });
       return;
@@ -72,11 +69,11 @@ Page({
       const leaderRes = await groupLeaderCol
         .where({ leaderOpenid: targetOpenid })
         .get({ forceServer: true });
-      console.log("团长基础信息：", leaderRes);
       let leaderData = {
         pendingReward: 0,
         withdrawAble: 0,
         totalOrder: 0,
+        totalCommission: 0,
         totalWithdrawn: 0,
         pendingWithdraw: 0,
         leaderOpenid: targetOpenid,
@@ -85,6 +82,12 @@ Page({
       if (leaderRes.data && leaderRes.data.length > 0) {
         leaderData = {
           ...leaderRes.data[0],
+          // 直接读取数据库字段，不重新计算
+          pendingReward: leaderRes.data[0].pendingReward || 0,
+          withdrawAble: leaderRes.data[0].withdrawAble || 0,
+          totalOrder: leaderRes.data[0].totalOrder || 0,
+          totalCommission: leaderRes.data[0].totalCommission || 0,
+          totalWithdrawn: leaderRes.data[0].totalWithdrawn || 0,
           pendingWithdraw: leaderRes.data[0].pendingWithdraw || 0,
         };
       }
@@ -96,34 +99,26 @@ Page({
         .get({ forceServer: true })
         .catch(() => ({ data: [] }));
 
-      // 2.1 对每条推广记录，去 users 表查【下单用户】的姓名 + 判断结算状态
-      // 2.1 对每条推广记录，去 users 表查【下单用户】的姓名 + 判断结算状态
       const rewardList = [];
       for (const item of rewardRes.data || []) {
         let userName = "未知用户";
-        let settleStatus = "未结算"; // 默认未结算
+        let settleStatus = "未结算";
         try {
-          console.log("正在查询用户openid：", item.userOpenid); // 调试日志
           const userRes = await db
             .collection("users")
-            .where({ _openid: item.userOpenid }) // 用 _openid 匹配 users 表
+            .where({ _openid: item.userOpenid })
             .get();
-          console.log("查询到的用户数据：", userRes.data); // 调试日志
           if (userRes.data && userRes.data.length > 0) {
             const user = userRes.data[0];
             const originalName = user.name || "未设置姓名";
-            // 脱敏处理：保留第一个字，后面加两个星号
-            if (originalName.length >= 2) {
-              userName = originalName[0] + "**";
-            } else {
-              userName = originalName + "**";
-            }
+            userName =
+              originalName.length >= 2
+                ? originalName[0] + "**"
+                : originalName + "**";
           } else {
-            // 如果找不到，显示 openid 后6位
             userName = `用户(${item.userOpenid.slice(-6)})`;
           }
 
-          // 判断结算状态
           if (item.settleStatus) {
             settleStatus =
               item.settleStatus === "settled" ? "已结算" : "未结算";
@@ -141,11 +136,10 @@ Page({
         rewardList.push({
           ...item,
           formatTime: formatTime(item.createTime),
-          userName: userName, // 现在是脱敏后的用户名
+          userName: userName,
           settleStatus: settleStatus,
         });
       }
-      console.log("推广记录数：", rewardList);
 
       // 3. 查询提现记录并格式化时间
       const withdrawRes = await withdrawRecordsCol
@@ -158,52 +152,15 @@ Page({
         formatTime: formatTime(item.createTime),
         status: item.status || "pending",
       }));
-      console.log("提现记录数：", withdrawList);
 
-      // 4. ✅ 核心修复：自动重新计算所有金额（不乱账）
-      const totalWithdrawn = withdrawList.reduce(
-        (sum, item) => sum + (item.status === "success" ? item.amount || 0 : 0),
-        0,
-      );
-      const pendingWithdraw = withdrawList.reduce(
-        (sum, item) => sum + (item.status === "pending" ? item.amount || 0 : 0),
-        0,
-      );
-      // 可提现金额 = 总佣金 - 已提现 - 审核中
-      const withdrawAble =
-        leaderData.totalCommission - totalWithdrawn - pendingWithdraw;
-
-      // 5. 更新团长数据（同步到数据库）
-      leaderData.withdrawAble = withdrawAble;
-      leaderData.pendingWithdraw = pendingWithdraw;
-      leaderData.totalWithdrawn = totalWithdrawn;
-      if (leaderData._id) {
-        await groupLeaderCol.doc(leaderData._id).update({
-          data: {
-            withdrawAble,
-            pendingWithdraw,
-            totalWithdrawn,
-            updateTime: db.serverDate(),
-          },
-        });
-      }
-
-      // 赋值渲染页面
+      // 4. 赋值渲染页面（不再重新计算金额，直接用数据库里的最新值）
       this.setData({
         groupLeaderData: leaderData,
         rewardRecords: rewardList,
         withdrawRecords: withdrawList,
       });
 
-      console.log("✅ 团长数据加载成功：", {
-        待结算收益: leaderData.pendingReward,
-        可提现金额: withdrawAble,
-        审核中金额: pendingWithdraw,
-        已提现金额: totalWithdrawn,
-        总推广订单: leaderData.totalOrder,
-        推广记录数: rewardList.length,
-        提现记录数: withdrawList.length,
-      });
+      console.log("✅ 团长数据加载成功：", leaderData);
     } catch (err) {
       console.error("加载团长数据失败：", err);
       wx.showToast({ title: "数据加载失败", icon: "none" });
@@ -211,6 +168,7 @@ Page({
   },
 
   // 结算：待结算收益 → 可提现金额（保留原有逻辑）
+  // 结算：待结算收益 → 可提现金额（补充更新推广订单的结算状态）
   async settleToWithdraw() {
     const openid = app.globalData.openid;
     const leaderData = this.data.groupLeaderData;
@@ -227,19 +185,44 @@ Page({
       success: async (res) => {
         if (res.confirm) {
           try {
-            console.log("准备更新团长数据：", leaderData._id, pending);
-            await groupLeaderCol.doc(leaderData._id).update({
+            wx.showLoading({ title: "结算中..." });
+
+            // 1. 先更新推广订单状态
+            await rewardRecordsCol
+              .where({
+                leaderOpenid: openid,
+                settleStatus: "unsettled",
+              })
+              .update({
+                data: {
+                  settleStatus: "settled",
+                  settleTime: db.serverDate(),
+                  updateTime: db.serverDate(),
+                },
+              });
+
+            // 2. 再更新团长金额，确保操作成功
+            const updateRes = await groupLeaderCol.doc(leaderData._id).update({
               data: {
                 pendingReward: 0,
                 withdrawAble: _.inc(pending),
                 updateTime: db.serverDate(),
               },
             });
+
+            console.log("金额更新结果：", updateRes);
+
+            wx.hideLoading();
             wx.showToast({ title: "结算成功" });
-            this.loadGroupLeaderData(); // 重新加载数据
+
+            // 强制延迟刷新，确保数据库写入完成
+            setTimeout(() => {
+              this.loadGroupLeaderData();
+            }, 1000);
           } catch (err) {
+            wx.hideLoading();
             console.error("结算失败：", err);
-            wx.showToast({ title: "结算失败", icon: "none" });
+            wx.showToast({ title: "结算失败：" + err.errMsg, icon: "none" });
           }
         }
       },

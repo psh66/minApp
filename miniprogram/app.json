@@ -6,7 +6,9 @@
     "pages/my/index",
     "pages/admin/index",
     "pages/groupLeader/index",
-    "pages/withdrawAudit/index"
+    "pages/withdrawAudit/index",
+    "pages/medicine/index",
+    "pages/medicine-quota/index"
   ],
   "window": {
     "backgroundColor": "#F6F6F6",
