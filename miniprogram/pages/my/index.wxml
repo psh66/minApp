@@ -69,7 +69,6 @@
         <text style="color: #ff7d00; margin-right: 10rpx;">💰</text>团长中心
       </view>
       <view style="display: flex; align-items: center;">
-        <view style="font-size: {{26 * fontSizeMultiple}}rpx; color: #ff7d00; margin-right: 10rpx;">可提现{{groupLeaderData.withdrawAble}}元</view>
         <view style="width: 16rpx; height: 16rpx; border-top: 2rpx solid #ff7d00; border-right: 2rpx solid #ff7d00; transform: rotate(45deg);"></view>
       </view>
     </view>

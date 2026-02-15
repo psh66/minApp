@@ -60,7 +60,7 @@
       </view>
     </view>
 
-    <view wx:else>
+    <view wx:else style="overflow-y: auto;max-height:200px">
       <view wx:for="{{medicineRemindList}}" wx:key="_id" 
         style="padding: 15rpx 0; border-bottom: {{index === medicineRemindList.length - 1 ? 'none' : '1px solid #f5f5f5'}};">
         
@@ -97,6 +97,42 @@
             style="background: #07c160; color: white; border: none; padding: 8rpx 15rpx; border-radius: 8rpx; font-size: {{24 * fontSizeMultiple}}rpx;">
             我已服药
           </button>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>
+<!-- ==================== 我的血压 ==================== -->
+<view style="margin-bottom: 25rpx;">
+  <view style="font-size: {{32 * fontSizeMultiple}}rpx; color: #333; margin-bottom: 20rpx; display: flex; justify-content: space-between; align-items: center;">
+    <text>{{isChildMode ? '父母血压记录' : '我的血压记录'}}</text>
+    <view style="display: flex; gap: 10rpx;">
+      <button bindtap="showBloodPressureDialog"
+        style="background: #722ED1; color: white; border: none; padding: 12rpx 20rpx; border-radius: 6rpx; font-size: {{22 * fontSizeMultiple}}rpx; width:160rpx;">
+        记血压
+      </button>
+      <button bindtap="showBpChart"
+        style="background: #13C2C2; color: white; border: none; padding: 12rpx 20rpx; border-radius: 6rpx; font-size: {{22 * fontSizeMultiple}}rpx; width:160rpx;">
+        看趋势
+      </button>
+    </view>
+  </view>
+
+  <view style="background: white; border-radius: 12rpx; padding: 20rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);">
+    <view wx:if="{{!bloodPressureList || bloodPressureList.length === 0}}"
+      style="text-align: center; padding: 30rpx 0; color: #999; font-size: {{28 * fontSizeMultiple}}rpx;">
+      🩸 暂无血压记录
+    </view>
+
+    <view wx:else style="overflow-y: auto;max-height:100px">
+      <view wx:for="{{bloodPressureList}}" wx:key="_id"
+        style="padding: 15rpx 0; border-bottom: {{index === bloodPressureList.length-1 ? 'none' : '1px solid #f5f5f5'}};">
+        <view style="display: flex; justify-content: space-between; font-size: {{28 * fontSizeMultiple}}rpx;">
+          <view>高压：{{item.high}} mmHg</view>
+          <view>低压：{{item.low}} mmHg</view>
+        </view>
+        <view style="font-size: {{24 * fontSizeMultiple}}rpx; color: #999; margin-top:6rpx;">
+          {{item.date}}
         </view>
       </view>
     </view>
@@ -328,4 +364,25 @@
       </view>
     </view>
   </view>
+  <!-- 记录血压弹窗 -->
+<view wx:if="{{showBloodPressureDialog}}" style="position: fixed; top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:999;display:flex;align-items:center;justify-content:center;">
+  <view style="width:80%;background:#fff;border-radius:16rpx;padding:30rpx;">
+    <view style="font-size:{{34 * fontSizeMultiple}}rpx; text-align:center; margin-bottom:30rpx;">
+      {{isChildMode ? '添加父母血压' : '添加我的血压'}}
+    </view>
+
+    <input placeholder="请输入高压" type="digit" data-key="high"
+      bindinput="onBpFormChange" value="{{bpForm.high}}"
+      style="border:1px solid #eee;border-radius:8rpx;padding:16rpx;font-size:{{30*fontSizeMultiple}}rpx;margin-bottom:20rpx;"/>
+
+    <input placeholder="请输入低压" type="digit" data-key="low"
+      bindinput="onBpFormChange" value="{{bpForm.low}}"
+      style="border:1px solid #eee;border-radius:8rpx;padding:16rpx;font-size:{{30*fontSizeMultiple}}rpx;margin-bottom:40rpx;"/>
+
+    <view style="display:flex;gap:20rpx;">
+      <button bindtap="confirmAddBloodPressure" style="flex:1;background:#722ED1;color:white;">保存</button>
+      <button bindtap="cancelAddBloodPressure" style="flex:1;background:#f5f5f5;">取消</button>
+    </view>
+  </view>
+</view>
 </view>

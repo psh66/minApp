@@ -67,7 +67,7 @@ Page({
     }
   },
   goToMedicineQuota() {
-    wx.navigateTo({ url: "/pages/medicine-quota/index" });
+    wx.navigateTo({ url: "/subpkgA/medicine-quota/index" });
   },
   // 加载通知配置
   async loadNoticeConfig() {
@@ -660,7 +660,7 @@ Page({
   // 跳转到团长提现审核页面
   goToWithdrawAudit() {
     wx.navigateTo({
-      url: "/pages/withdrawAudit/index",
+      url: "/subpkgA/withdrawAudit/index",
     });
   },
 });

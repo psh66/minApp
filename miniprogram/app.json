@@ -1,14 +1,22 @@
 {
   "pages": [
     "pages/index/index",
-    "pages/example/index",
-    "pages/mian/index",
-    "pages/my/index",
-    "pages/admin/index",
-    "pages/groupLeader/index",
-    "pages/withdrawAudit/index",
-    "pages/medicine/index",
-    "pages/medicine-quota/index"
+    "pages/my/index"
+  ],
+  "subpackages": [
+    {
+      "root": "subpkgA",
+      "pages": [
+        "example/index",
+        "mian/index",
+        "admin/index",
+        "groupLeader/index",
+        "withdrawAudit/index",
+        "medicine/index",
+        "medicine-quota/index",
+        "bpChart/index"
+      ]
+    }
   ],
   "window": {
     "backgroundColor": "#F6F6F6",

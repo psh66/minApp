@@ -94,7 +94,7 @@ Page({
 
   // 跳转后台设置页面
   navigateToAdmin() {
-    wx.navigateTo({ url: "/pages/admin/index" });
+    wx.navigateTo({ url: "/subpkgA/admin/index" });
   },
 
   // 权限校验通用方法
@@ -865,7 +865,7 @@ Page({
   // 跳转到独立团长中心页面
   goToGroupLeader() {
     wx.navigateTo({
-      url: "/pages/groupLeader/index",
+      url: "/subpkgA/groupLeader/index",
       fail: () => {
         wx.showToast({ title: "团长中心页面不存在", icon: "none" });
       },

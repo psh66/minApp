@@ -100,6 +100,16 @@ Page({
     subscribeCount: 0,
     medicineTmplId: "TTh86bIvpQrQjBZ2OSOcw4onxCo0Eey4wjTAtoXNl-E",
     isSubscribing: false,
+    // 血压相关
+bloodPressureList: [],
+showBloodPressureDialog: false,
+bpForm: {
+  high: '',    // 高压
+  low: ''      // 低压
+},
+bpChartData: [], // 近30天血压图表数据
+showBpChartDialog: false, // 图表弹窗开关
+  bpChart: null // 图表实例
   },
 
   onShareAppMessage() {
@@ -238,7 +248,10 @@ Page({
     this.loadParentSignData();
     // 新增：加载用药提醒列表
     this.loadMedicineRemindList();
+    this.loadBloodPressureList();
+    this.loadBpChartData();
     await this.loadSubscribeCount();
+
   },
 
   async onShow() {
@@ -254,6 +267,8 @@ Page({
     this.checkUserEmail();
     this.loadTargetUserConfig(); // 刷新同步配置
     this.loadNoticeConfig(); // 加载通知配置
+    this.loadBloodPressureList();
+    this.loadBpChartData();  
 
     // ========== 修复：onShow 也同步更新签到状态 ==========
     if (!this.data.isChildMode) {
@@ -427,7 +442,7 @@ Page({
     }
 
     wx.navigateTo({
-      url: `/pages/medicine/index?isChildMode=${this.data.isChildMode}&targetOpenid=${
+      url: `/subpkgA/medicine/index?isChildMode=${this.data.isChildMode}&targetOpenid=${
         this.data.isChildMode
           ? getApp().globalData.bindParentOpenid
           : getApp().globalData.openid
@@ -1773,4 +1788,132 @@ Page({
         console.error("加载父母签到数据失败：", err);
       });
   },
+  // ==================== 血压相关 ====================
+showBloodPressureDialog() {
+  if (this.data.isTrialExpired && !this.data.isChildMode) {
+    return wx.showToast({ title: '试用已到期，请升级正式版', icon: 'none' });
+  }
+  this.setData({ showBloodPressureDialog: true });
+},
+
+onBpFormChange(e) {
+  const key = e.currentTarget.dataset.key;
+  this.setData({
+    [`bpForm.${key}`]: e.detail.value
+  })
+},
+
+cancelAddBloodPressure() {
+  this.setData({
+    showBloodPressureDialog: false,
+    bpForm: { high: '', low: '' }
+  })
+},
+
+// 保存血压
+async confirmAddBloodPressure() {
+  const { high, low } = this.data.bpForm;
+  if (!high || !low) {
+    return wx.showToast({ title: '请输入高压和低压', icon: 'none' });
+  }
+  if (isNaN(high) || isNaN(low)) {
+    return wx.showToast({ title: '请输入数字', icon: 'none' });
+  }
+
+  const app = getApp();
+  const targetOpenid = this.data.isChildMode
+    ? app.globalData.bindParentOpenid
+    : app.globalData.openid;
+
+  const hasPermission = await this.checkChildPermission(targetOpenid);
+  if (!hasPermission) return;
+
+  try {
+    await db.collection('bloodPressure').add({
+      data: {
+        high: Number(high),
+        low: Number(low),
+        recordTime: db.serverDate(),
+        date: this.formatDate(new Date()),
+        openid: targetOpenid
+      }
+    });
+    wx.showToast({ title: '保存成功' });
+    this.cancelAddBloodPressure();
+    this.loadBloodPressureList();
+    this.loadBpChartData();
+  } catch (err) {
+    console.error(err);
+    wx.showToast({ title: '保存失败', icon: 'none' });
+  }
+},
+
+// 加载血压记录
+async loadBloodPressureList() {
+  const app = getApp();
+  const targetOpenid = this.data.isChildMode
+    ? app.globalData.bindParentOpenid
+    : app.globalData.openid;
+
+  try {
+    const res = await db.collection('bloodPressure')
+      .where({ _openid: targetOpenid })
+      .orderBy('recordTime', 'desc')
+      .get();
+    this.setData({ bloodPressureList: res.data });
+  } catch (err) {
+    console.error(err);
+  }
+},
+
+// 加载近30天图表数据
+async loadBpChartData() {
+  const app = getApp();
+  const targetOpenid = this.data.isChildMode
+    ? app.globalData.bindParentOpenid
+    : app.globalData.openid;
+
+  // 近30天起始时间
+  const start = new Date();
+  start.setDate(start.getDate() - 30);
+
+  try {
+    const res = await db.collection('bloodPressure')
+      .where({
+        _openid: targetOpenid,
+        recordTime: db.command.gte(start)
+      })
+      .orderBy('recordTime', 'asc')
+      .get();
+
+    const bpChartData = res.data.map(item => ({
+      date: item.date,
+      high: item.high,
+      low: item.low
+    }));
+    this.setData({ bpChartData });
+  } catch (err) {
+    console.error(err);
+  }
+},
+
+// 查看图表
+// 查看图表（修改后：传递数据到新页面）
+// 查看图表（新页面打开）
+showBpChart() {
+  this.loadBpChartData().then(() => {
+    const { bpChartData } = this.data;
+
+    if (!bpChartData || bpChartData.length === 0) {
+      return wx.showToast({ title: '暂无近30天血压数据', icon: 'none' });
+    }
+
+    const app = getApp();
+    app.globalData.bpChartData = bpChartData;
+
+    wx.navigateTo({
+      url: '/subpkgA/bpChart/index'
+    });
+  });
+},
 });

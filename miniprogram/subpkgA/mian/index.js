@@ -100,7 +100,7 @@ Page({
       });
     } else if (selectedItem.type) {
       wx.navigateTo({
-        url: `/pages/example/index?envId=${this.data.selectedEnv?.envId}&type=${selectedItem.type}`,
+        url: `/subpkgA/example/index?envId=${this.data.selectedEnv?.envId}&type=${selectedItem.type}`,
       });
     } else if (selectedItem.page) {
       wx.navigateTo({
@@ -124,7 +124,7 @@ Page({
     console.log("jump page", type, page);
     if (type) {
       wx.navigateTo({
-        url: `/pages/example/index?envId=${this.data.selectedEnv?.envId}&type=${type}`,
+        url: `/subpkgA/example/index?envId=${this.data.selectedEnv?.envId}&type=${type}`,
       });
     } else {
       wx.navigateTo({
